@@ -1,0 +1,46 @@
+source ~/.vimrc
+
+noremap <C-p> :action SearchEverywhere<CR>
+inoremap <C-p> <Esc>:action SearchEverywhere<CR>i
+
+nnoremap <Leader><Leader> :action ShowIntentionActions<CR>
+nnoremap <Leader><Up> :action MoveStatementUp<CR>
+nnoremap <Leader><Down> :action MoveStatementDown<CR>
+nnoremap <Leader>= :action ReformatCode<CR>
+nnoremap <Leader>- :action ReformatCode<CR>:action RearrangeCode<CR>
+nnoremap <Leader>[ :action ExpandRegionRecursively<CR>
+nnoremap <Leader>] :action CollapseRegionRecursively<CR>
+" string manipulation
+nnoremap <Leader>p :action osmedile.intellij.stringmanip.PopupChoiceAction<CR>
+" redo
+nnoremap <Leader>u :action VimRedo<CR>
+" rename
+nnoremap <Leader>r :action RenameElement<CR>i
+" refactor
+nnoremap <Leader>R :action Refactorings.QuickListPopupAction<CR>
+nnoremap <Leader>g :action Generate<CR>
+nnoremap <Leader>v :action IntroduceVariable<CR>
+nnoremap <Leader>V :action IntroduceField<CR>
+" nnoremap <Leader>h :action ToggleInlineHintsAction<CR>
+nnoremap <Leader>h :action LocalHistory.ShowHistory<CR>
+" hide tool window
+nnoremap <Leader>t :action HideActiveWindow<CR>
+" hide all tool windows
+nnoremap <Leader>T :action HideAllWindows<CR>
+" open issues
+nnoremap <Leader>i :action tasks.open.in.browser<CR>
+" sort in {}
+nnoremap <Leader>s vi{:sort<CR>
+
+" go switch
+nnoremap gs :action Switcher<CR>
+" go run
+nnoremap gr :action ChooseRunConfiguration<CR>
+" go to declaration (already builtin to ideavim)
+" nnoremap gd :action GotoDeclaration<CR>
+
+" Error navigation
+nnoremap ge :action GotoNextError<CR>
+nnoremap gE :action GotoPreviousError<CR>
+
+set surround
