@@ -84,6 +84,8 @@ Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-eunuch'
 
+Plug 'tpope/vim-fugitive'
+
 Plug 'mattn/emmet-vim'
 Plug 'valloric/matchtagalways'
 
