@@ -20,6 +20,7 @@ set relativenumber
 set wildmenu
 set cursorline
 set scrolloff=3
+set signcolumn=yes
 
 " load external changes
 set autoread
