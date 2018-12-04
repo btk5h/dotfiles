@@ -85,6 +85,7 @@ Plug 'tpope/vim-repeat'
 Plug 'tpope/vim-eunuch'
 
 Plug 'tpope/vim-fugitive'
+Plug 'airblade/vim-gitgutter'
 
 Plug 'mattn/emmet-vim'
 Plug 'valloric/matchtagalways'
