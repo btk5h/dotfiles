@@ -21,6 +21,9 @@ set wildmenu
 set cursorline
 set scrolloff=3
 
+" load external changes
+set autoread
+
 " backspace in insert
 set backspace=indent,eol,start
 
