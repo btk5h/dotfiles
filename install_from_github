@@ -5,6 +5,6 @@ set -e
 GIT_URL="https://github.com/btk5h/dotfiles.git"
 DOT_LOC="~/.dotfiles"
 
-git clone --recurvsive  $GIT_URL $DOT_LOC 
+git clone --recursive  $GIT_URL $DOT_LOC 
 cd $DOT_LOC 
 ./install
