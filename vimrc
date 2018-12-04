@@ -13,6 +13,7 @@ set expandtab
 " performance
 set ttyfast
 set lazyredraw
+set updatetime=100
 
 " QoL info
 set number
