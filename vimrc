@@ -95,6 +95,8 @@ Plug 'valloric/matchtagalways'
 
 Plug 'dag/vim-fish'
 
+Plug 'jeffkreeftmeijer/vim-numbertoggle'
+
 call plug#end()
 
 " airline
