@@ -2,12 +2,22 @@
 
 set -e
 
+if [ -t 1 ]; then
+  GREEN=$(tput setaf 2)
+  RESET=$(tput sgr0)
+else
+  GREEN=""
+  RESET=""
+fi
+
 GIT_URL="https://github.com/btk5h/dotfiles.git"
 DOT_LOC="${HOME}/.dotfiles"
 
 if [ ! -d "$DOT_LOC" ]; then
+  echo -e "${GREEN}${DOT_LOC} does not exist! Downloading the latest dotfiles from ${GIT_URL}${RESET}"
   git clone --recursive  $GIT_URL $DOT_LOC 
 else 
+  echo -e "${GREEN}${DOT_LOC} exists! Fetching the latest updates and checking out origin/master${RESET}"
   cd $DOT_LOC
   git fetch
   git reset --hard origin/master
