@@ -26,5 +26,5 @@ fi
 cd $DOT_LOC 
 ./install
 
-echo "${GREEN}Updating vim plugins"
+echo "${GREEN}Updating vim plugins${RESET}"
 vim +PlugUpdate +PlugClean! +qall
