@@ -7,6 +7,10 @@ DOT_LOC="${HOME}/.dotfiles"
 
 if [ ! -d "$DOT_LOC" ]; then
   git clone --recursive  $GIT_URL $DOT_LOC 
+else 
+  cd $DOT_LOC
+  git fetch
+  git reset --hard origin/master
 fi
 
 cd $DOT_LOC 
