@@ -28,3 +28,5 @@ cd $DOT_LOC
 
 echo "${GREEN}Updating vim plugins${RESET}"
 vim +PlugUpdate +PlugClean! +qall
+
+exit 0
