@@ -97,6 +97,11 @@ Plug 'dag/vim-fish'
 
 Plug 'jeffkreeftmeijer/vim-numbertoggle'
 
+Plug 'xolox/vim-misc'
+Plug 'xolox/vim-notes'
+
+Plug 'scrooloose/nerdtree'
+
 call plug#end()
 
 " airline
