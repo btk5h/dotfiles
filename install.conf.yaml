@@ -8,5 +8,5 @@
     ~/.tmux.conf: tmux.conf
     ~/.vimrc: vimrc
     ~/.ideavimrc: ideavimrc
-
+    ~/Brewfile: Brewfile
 
