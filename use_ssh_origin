@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -e
+
+GIT_URL="git@github.com:btk5h/dotfiles.git"
+
+git remote set-url origin $GIT_URL
