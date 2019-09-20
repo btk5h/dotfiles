@@ -9,4 +9,5 @@
     ~/.vimrc: vimrc
     ~/.ideavimrc: ideavimrc
     ~/Brewfile: Brewfile
+    ~/.gitignore: gitignore
 
