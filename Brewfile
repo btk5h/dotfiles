@@ -2,6 +2,7 @@ tap "caskroom/cask"
 
 brew "node"
 brew "yarn"
+brew "fish"
 
 cask "studio-3t"
 cask "discord"
