@@ -17,6 +17,7 @@ cask "mosaic"
 cask "scroll-reverser"
 cask "steam"
 cask "studio-3t"
+cask "visual-studio-code"
 mas "Deliveries", id: 924726344
 mas "Fantastical", id: 975937182
 mas "Master Password", id: 662763204
