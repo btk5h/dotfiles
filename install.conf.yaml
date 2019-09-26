@@ -10,4 +10,7 @@
     ~/.ideavimrc: ideavimrc
     ~/Brewfile: Brewfile
     ~/.gitignore: gitignore
+    ~/.config/fish:
+      create: true
+      path: fish
 
