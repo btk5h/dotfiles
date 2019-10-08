@@ -17,12 +17,15 @@ cask "google-chrome"
 cask "gpg-suite"
 cask "java"
 cask "jetbrains-toolbox"
+cask "keepassxc"
 cask "league-of-legends"
+cask "mission-control-plus"
 cask "mosaic"
 cask "scroll-reverser"
 cask "steam"
 cask "studio-3t"
 cask "visual-studio-code"
+cask "zoomus"
 mas "Deliveries", id: 924726344
 mas "Fantastical", id: 975937182
 mas "Master Password", id: 662763204
