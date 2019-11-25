@@ -7,6 +7,7 @@ tap "homebrew/core"
 brew "ant"
 brew "fish"
 brew "git"
+brew "hub"
 brew "mas"
 brew "maven"
 brew "node"
@@ -24,6 +25,7 @@ cask "league-of-legends"
 cask "minecraft"
 cask "mission-control-plus"
 cask "mosaic"
+cask "postgres"
 cask "postman"
 cask "scroll-reverser"
 cask "steam"
@@ -33,6 +35,7 @@ cask "zoomus"
 cask "adoptopenjdk/openjdk/adoptopenjdk11"
 mas "Deliveries", id: 924726344
 mas "Fantastical", id: 975937182
+mas "Lungo", id: 1263070803
 mas "Master Password", id: 662763204
 mas "Slack", id: 803453959
 mas "Xcode", id: 497799835
