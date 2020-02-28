@@ -47,6 +47,7 @@ cask "steam"
 cask "studio-3t"
 cask "visual-studio-code"
 cask "zoomus"
+mas "DaisyDisk", id: 411643860
 mas "Deliveries", id: 924726344
 mas "Fantastical", id: 975937182
 mas "Lungo", id: 1263070803
