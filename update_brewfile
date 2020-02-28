@@ -6,7 +6,7 @@ BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 cd $BASEDIR
 rm Brewfile
-brew bundle dump
+brew bundle dump --all
 
 git diff --quiet Brewfile || {
   git commit -m "Update Brewfile" Brewfile
