@@ -1,5 +1,8 @@
 #!/bin/bash
-
+{{ if ne .profile "personal" }}
+echo "Skipping proto install (profile: {{ .profile }})."
+exit 0
+{{ end }}
 if command -v proto &>/dev/null || [ -x "$HOME/.proto/bin/proto" ]; then
     echo "proto is already installed, skipping."
     exit 0
