@@ -1,13 +1,46 @@
 packages:
   taps:
-    common: []
-    personal: []
+    common:
+      - hashicorp/tap
+    personal:
+      - fluxcd/tap
+      - siderolabs/talos
     work: []
   formulae:
-    common: []
-    personal: []
+    common:
+      - chezmoi
+      - fish
+      - fisher
+      - gh
+      - git-absorb
+      - git-lfs
+      - jq
+      - kubernetes-cli
+      - pinentry-mac
+    personal:
+      - fluxcd/tap/flux
+      - helm
+      - siderolabs/talos/talosctl
+      - velero
     work: []
   casks:
-    common: []
-    personal: []
+    common:
+      - 1password
+      - 1password-cli
+      - bartender
+      - cleanshot
+      - discord
+      - docker
+      - docker-desktop
+      - firefox
+      - font-jetbrains-mono-nerd-font
+      - jetbrains-toolbox
+      - mimestream
+      - raycast
+    personal:
+      - downie
+      - permute
+      - sketch
+      - steam
+      - tailscale
     work: []
