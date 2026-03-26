@@ -36,3 +36,4 @@ chezmoi managed                # List all managed files
 - Templates (`.tmpl` files) can use `{{ .chezmoi.os }}`, `{{ .chezmoi.hostname }}`, and custom data from `~/.config/chezmoi/chezmoi.toml`
 - Scripts prefixed `run_once_` run only once; `run_onchange_` re-run when their content changes
 - Be careful with `exact_` directories — they delete unmanaged files in the target
+- **Never commit sensitive or proprietary files** — this is a public repo. Do not add API keys, tokens, credentials, `.env` files, private keys, or proprietary work configuration. Always review staged changes before committing to ensure no secrets or sensitive data are included. Use encrypted files or templates with secrets sourced from a password manager to keep sensitive values out of the repo.
