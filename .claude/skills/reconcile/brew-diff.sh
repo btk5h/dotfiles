@@ -47,11 +47,12 @@ DECLARED_FORMULAE=$(declared_list formulae)
 DECLARED_CASKS=$(declared_list casks)
 
 # --- Gather installed packages ---
-# Use `brew leaves` for formulae to exclude auto-installed dependencies.
-# `brew leaves` lists only formulae not depended on by other installed formulae.
+# Use `--installed-on-request` to only surface formulae the user explicitly installed.
+# Anything installed as a dependency is automatically treated as ignored.
 INSTALLED_TAPS=$(brew tap 2>/dev/null || true)
-INSTALLED_FORMULAE=$(brew leaves 2>/dev/null || true)
+INSTALLED_FORMULAE=$(brew list --formula --installed-on-request -1 2>/dev/null || true)
 INSTALLED_CASKS=$(brew list --cask -1 2>/dev/null || true)
+DEP_FORMULAE=$(brew list --formula --installed-as-dependency -1 2>/dev/null || true)
 
 # --- Load ignored packages ---
 IGNORED=""
@@ -61,10 +62,13 @@ fi
 
 is_ignored() {
     local pkg=$1
-    if [ -z "$IGNORED" ]; then
-        return 1
+    if [ -n "$IGNORED" ] && echo "$IGNORED" | grep -qx "$pkg"; then
+        return 0
     fi
-    echo "$IGNORED" | grep -qx "$pkg"
+    if [ -n "$DEP_FORMULAE" ] && echo "$DEP_FORMULAE" | grep -qx "$pkg"; then
+        return 0
+    fi
+    return 1
 }
 
 # --- Compute and output diff ---
@@ -90,9 +94,7 @@ diff_category() {
             if [ -n "$declared" ] && echo "$declared" | grep -qx "$pkg"; then
                 continue
             fi
-            if is_ignored "$pkg"; then
-                echo "IGNORED $category_label: $pkg"
-            else
+            if ! is_ignored "$pkg"; then
                 echo "EXTRA $category_label: $pkg"
             fi
         done <<< "$installed"
