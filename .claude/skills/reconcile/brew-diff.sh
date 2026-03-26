@@ -62,7 +62,9 @@ fi
 
 is_ignored() {
     local pkg=$1
-    if [ -n "$IGNORED" ] && echo "$IGNORED" | grep -qx "$pkg"; then
+    # Match bare name (exact) or tap-qualified entry ending with /<pkg>.
+    # Use fixed-string matching to handle special characters (e.g. logi-options+).
+    if [ -n "$IGNORED" ] && { echo "$IGNORED" | grep -qFx "$pkg" || echo "$IGNORED" | grep -qF "/$pkg"; }; then
         return 0
     fi
     if [ -n "$DEP_FORMULAE" ] && echo "$DEP_FORMULAE" | grep -qx "$pkg"; then
