@@ -29,7 +29,6 @@ packages:
       - 1password-cli
       - bartender
       - cleanshot
-      - discord
       - docker
       - docker-desktop
       - firefox
@@ -38,6 +37,7 @@ packages:
       - mimestream
       - raycast
     personal:
+      - discord
       - downie
       - permute
       - sketch
