@@ -13,7 +13,6 @@ packages:
       - fisher
       - gh
       - git-absorb
-      - git-lfs
       - jq
       - kubernetes-cli
       - pinentry-mac
