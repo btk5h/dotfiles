@@ -47,8 +47,10 @@ DECLARED_FORMULAE=$(declared_list formulae)
 DECLARED_CASKS=$(declared_list casks)
 
 # --- Gather installed packages ---
+# Use `brew leaves` for formulae to exclude auto-installed dependencies.
+# `brew leaves` lists only formulae not depended on by other installed formulae.
 INSTALLED_TAPS=$(brew tap 2>/dev/null || true)
-INSTALLED_FORMULAE=$(brew list --formula -1 2>/dev/null || true)
+INSTALLED_FORMULAE=$(brew leaves 2>/dev/null || true)
 INSTALLED_CASKS=$(brew list --cask -1 2>/dev/null || true)
 
 # --- Load ignored packages ---
