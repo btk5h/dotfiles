@@ -1,0 +1,50 @@
+#!/bin/bash
+# packages hash: {{ .packages | toJson | sha256sum }}
+
+set -euo pipefail
+
+if ! command -v brew &>/dev/null && ! [ -x /opt/homebrew/bin/brew ]; then
+    echo "Homebrew is not installed, skipping package install."
+    exit 0
+fi
+
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+{{ $taps := concat .packages.taps.common (index .packages.taps .profile) -}}
+{{ $formulae := concat .packages.formulae.common (index .packages.formulae .profile) -}}
+{{ $casks := concat .packages.casks.common (index .packages.casks .profile) -}}
+
+{{ if $taps -}}
+echo "==> Ensuring Homebrew taps..."
+{{ range $taps -}}
+brew tap {{ . }} 2>/dev/null || true
+{{ end }}
+{{ end -}}
+
+{{ if $formulae -}}
+echo "==> Installing formulae..."
+INSTALLED_FORMULAE=$(brew list --formula -1)
+{{ range $formulae -}}
+if ! echo "$INSTALLED_FORMULAE" | grep -qx '{{ . }}'; then
+    echo "  Installing {{ . }}..."
+    brew install {{ . }}
+else
+    echo "  {{ . }} ✓"
+fi
+{{ end }}
+{{ end -}}
+
+{{ if $casks -}}
+echo "==> Installing casks..."
+INSTALLED_CASKS=$(brew list --cask -1)
+{{ range $casks -}}
+if ! echo "$INSTALLED_CASKS" | grep -qx '{{ . }}'; then
+    echo "  Installing {{ . }}..."
+    brew install --cask {{ . }}
+else
+    echo "  {{ . }} ✓"
+fi
+{{ end }}
+{{ end -}}
+
+echo "==> Homebrew packages up to date."

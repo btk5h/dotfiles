@@ -29,6 +29,15 @@ chezmoi cat <target>           # Show what chezmoi would write for a target file
 chezmoi managed                # List all managed files
 ```
 
+## Homebrew Package Management
+
+Packages are managed declaratively via `.chezmoidata/packages.yaml`. Structure:
+
+- Three categories: `taps`, `formulae`, `casks`
+- Each has `common`, `personal`, and `work` sub-keys — **all sub-keys must exist** (even if empty) or template rendering will fail
+- The `run_onchange_install-packages.sh.tmpl` script installs declared packages during `chezmoi apply`
+- `.brew-ignored` (gitignored, local-only) lists packages the user doesn't want to manage declaratively — the `/reconcile` skill reads this to skip known-unmanaged packages
+
 ## Working With This Repo
 
 - Edit files at the repo root (source state), then run `chezmoi apply` to sync to `~/`

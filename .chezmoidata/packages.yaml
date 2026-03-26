@@ -1,0 +1,13 @@
+packages:
+  taps:
+    common: []
+    personal: []
+    work: []
+  formulae:
+    common: []
+    personal: []
+    work: []
+  casks:
+    common: []
+    personal: []
+    work: []
