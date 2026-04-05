@@ -1,6 +1,8 @@
 #!/bin/bash
-# rich-diff.sh — Enriched chezmoi diff that includes timestamp direction for each file.
-# Wraps `chezmoi diff` output, injecting a DIRECTION header before each file's diff.
+# rich-diff.sh — Enriched chezmoi diff with explicit side labels.
+# Wraps `chezmoi diff` output, replacing the ambiguous -/+ prefixes with
+# [MACHINE] and [REPO] labels so there is zero confusion about which side
+# each line belongs to.
 #
 # Terminology:
 #   "repo"         = chezmoi source state (this git repo)
@@ -12,16 +14,25 @@
 #
 # Usage: bash .claude/skills/reconcile/rich-diff.sh
 #
-# Output format: standard chezmoi diff output, with a direction line before each file:
-#   # REPO_NEWER: .config/ghostty/config.ghostty (repo: 1775369903, machine: 1775369800)
-#   diff --git a/.config/ghostty/config.ghostty b/.config/ghostty/config.ghostty
-#   ...
+# Output format — labeled diff with direction headers:
 #
-# Direction values:
-#   REPO_NEWER    — repo file was modified more recently than this machine
+#   === .config/ghostty/config (MACHINE_NEWER) ===
+#   @@ -1,6 +1,6 @@
+#    font-family = JetBrainsMono Nerd Font Propo
+#   [MACHINE] font-size = 14
+#   [REPO]    font-size = 13
+#    theme = catppuccin-mocha
+#
+# Labels:
+#   [MACHINE] — this line is content on this machine (home directory)
+#   [REPO]    — this line is content from the repo (what apply would write)
+#   (unlabeled, indented) — context lines present on both sides
+#
+# Direction values (in the === header):
 #   MACHINE_NEWER — this machine's file was modified more recently than repo
+#   REPO_NEWER    — repo file was modified more recently than this machine
 #   SAME_TIME     — both have the same modification time
-#   NEW_FILE      — file exists on one side only (no timestamp comparison possible)
+#   NEW_FILE      — file exists on one side only
 #
 # Exit codes:
 #   0 — completed (empty output means no drift)
@@ -72,21 +83,44 @@ direction_for() {
     target_ts=$(stat -f '%m' "$target_path" 2>/dev/null || echo 0)
 
     if [ "$source_ts" -gt "$target_ts" ]; then
-        echo "REPO_NEWER (repo: $source_ts, machine: $target_ts)"
+        echo "REPO_NEWER"
     elif [ "$target_ts" -gt "$source_ts" ]; then
-        echo "MACHINE_NEWER (repo: $source_ts, machine: $target_ts)"
+        echo "MACHINE_NEWER"
     else
         echo "SAME_TIME"
     fi
 }
 
-# Process diff output line by line, injecting direction headers
+# Process diff output line by line, replacing -/+ with labels
 while IFS= read -r line; do
     if [[ "$line" == "diff --git a/"* ]]; then
         # Extract target-relative path from diff header
         target_rel=$(echo "$line" | sed 's|^diff --git a/\(.*\) b/.*|\1|')
         direction=$(direction_for "$target_rel")
-        echo "# $direction: $target_rel"
+        echo ""
+        echo "=== $target_rel ($direction) ==="
+    elif [[ "$line" == "--- a/"* ]] || [[ "$line" == "--- /dev/null" ]]; then
+        # Skip the old --- header (replaced by === header)
+        continue
+    elif [[ "$line" == "+++ b/"* ]] || [[ "$line" == "+++ /dev/null" ]]; then
+        # Skip the old +++ header (replaced by === header)
+        continue
+    elif [[ "$line" == "index "* ]]; then
+        # Skip index line
+        continue
+    elif [[ "$line" == "@@"* ]]; then
+        # Keep hunk headers for context
+        echo "$line"
+    elif [[ "$line" == "-"* ]]; then
+        # Machine content (chezmoi diff: - = current target state)
+        echo "[MACHINE] ${line:1}"
+    elif [[ "$line" == "+"* ]]; then
+        # Repo content (chezmoi diff: + = desired source state)
+        echo "[REPO]    ${line:1}"
+    elif [[ "$line" == " "* ]]; then
+        # Context line (same on both sides) — keep leading space for alignment
+        echo "         ${line:1}"
+    else
+        echo "$line"
     fi
-    echo "$line"
 done <<< "$diff_output"

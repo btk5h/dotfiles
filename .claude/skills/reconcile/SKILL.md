@@ -82,17 +82,26 @@ Run the rich-diff helper script to see all pending changes with timestamp-based 
 bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh"
 ```
 
-This wraps `chezmoi diff` output, injecting a direction comment before each file's diff:
-- `# REPO_NEWER: <path> (repo: <epoch>, machine: <epoch>)` — the repo file was modified more recently
-- `# MACHINE_NEWER: <path> (repo: <epoch>, machine: <epoch>)` — the file on this machine was modified more recently
-- `# SAME_TIME: <path>` — both sides have the same modification time
-- `# NEW_FILE: <path>` — file exists on only one side
+This wraps `chezmoi diff` output with **explicit side labels** — no ambiguous `-`/`+` prefixes. Each file's output looks like:
 
-The rest of the output is standard unified diff format. **This is a chezmoi diff, not a git diff** — the sides are different from what you might expect:
-- Lines prefixed with `-` show what's currently on **this machine** (home directory)
-- Lines prefixed with `+` show what the **repo** wants to write
+```
+=== .config/fish/config.fish (MACHINE_NEWER) ===
+@@ -10,7 +10,7 @@
+          set -gx EDITOR nvim
+[MACHINE] set -gx PATH $HOME/.local/bin $HOME/.cargo/bin $PATH
+[REPO]    set -gx PATH $HOME/.cargo/bin $PATH
+          # Aliases
+```
 
-This means the diff shows the transformation chezmoi would apply: remove `-` lines from this machine, replace with `+` lines from the repo. **Apply** always means "write repo to this machine" (i.e., `-` lines get replaced by `+` lines). **Update repo** always means "pull this machine into repo" (i.e., keep the `-` lines).
+- `[MACHINE]` — this line exists on **this machine** (the home directory)
+- `[REPO]`    — this line exists in the **repo** (what `chezmoi apply` would write)
+- Unlabeled indented lines are context (same on both sides)
+
+The `=== header ===` includes the direction:
+- **REPO_NEWER** — repo was modified more recently
+- **MACHINE_NEWER** — this machine was modified more recently
+- **SAME_TIME** — both have the same modification time
+- **NEW_FILE** — file exists on one side only
 
 Timestamp logic:
 - **Repo files**: uses `git log` commit time (stable across checkouts), unless the file has uncommitted local changes, in which case file mtime is used
@@ -110,14 +119,19 @@ Present a clear, concise summary of each file that has differences. Group them l
   - **MACHINE_NEWER** — you made changes directly on this machine; default suggestion is **Update repo**
   - **SAME_TIME** or **NEW_FILE** — use diff content to judge
 
-**Describing what changed — read the diff carefully relative to direction:**
+**Describing what changed:**
 
-When describing changes, remember that chezmoi diff always shows this machine (`-`) → repo (`+`), regardless of which side is newer. This can be counterintuitive:
+The diff output uses explicit `[MACHINE]` and `[REPO]` labels — read them directly:
+- `[MACHINE]` lines show what's on this machine right now
+- `[REPO]` lines show what the repo would write
 
-- **REPO_NEWER**: The `+` lines are the newer changes (what you changed in the repo). The `-` lines are the older state on this machine. Applying writes `+` lines to this machine. Describe changes as "repo changed X to Y" where Y is in the `+` lines.
-- **MACHINE_NEWER**: The `-` lines are the newer changes (what you changed on this machine). The `+` lines are the older repo state. Applying would *revert* this machine back to the `+` lines. Updating the repo would keep the `-` lines. Describe changes as "this machine changed X to Y" where Y is in the `-` lines.
+Describe both sides factually, then let the direction indicator guide which action to suggest by default:
+- "Machine has `X`, repo has `Y`"
+- "Machine includes `extra-line`, repo does not"
 
-When presenting options, describe the concrete effect of each action based on the actual diff content (e.g., "Apply (revert to old-value)" or "Update repo (keep new-value)"), so the user knows exactly what each choice does.
+When presenting options, state the concrete effect using actual values from the diff:
+- "**Apply** — writes repo content to this machine (replaces `X` with `Y`)"
+- "**Update repo** — pulls this machine's content into the repo (keeps `X`)"
 
 Use your judgment about how much detail to show. For small diffs, show them inline. For large diffs, summarize and offer to show details on request.
 
