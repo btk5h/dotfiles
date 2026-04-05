@@ -3,6 +3,7 @@ name: reconcile
 description: Reconcile differences between chezmoi source state and target state (home directory), including Homebrew packages. Use this skill when the user wants to review pending dotfile changes, sync their chezmoi source with what's actually in their home directory, resolve drift between managed files, reconcile packages, or decide file-by-file whether to apply or update source. Trigger on phrases like "reconcile", "sync dotfiles", "chezmoi diff", "what changed in my dotfiles", "dotfile drift", "reconcile packages", "brew drift", "package drift", or any mention of source vs target state differences.
 allowed-tools:
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh")
+  - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh")
   - Bash(chezmoi diff *)
   - Bash(chezmoi data *)
   - Bash(chezmoi cat *)
@@ -62,11 +63,25 @@ Missing packages need no action — they will be installed automatically on next
 
 ### Step 2: Discover file differences
 
-Run `chezmoi diff --no-pager` to see all pending changes. This shows what `chezmoi apply` would do -- i.e., what the source state wants to write to the target.
+Run the rich-diff helper script to see all pending changes with timestamp-based direction indicators:
 
-The diff output uses unified diff format:
+```bash
+bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh"
+```
+
+This wraps `chezmoi diff` output, injecting a direction comment before each file's diff:
+- `# SOURCE_AHEAD: <path> (source: <epoch>, target: <epoch>)` — the source file was modified more recently
+- `# TARGET_AHEAD: <path> (source: <epoch>, target: <epoch>)` — the target file was modified more recently
+- `# SAME_TIME: <path>` — both sides have the same modification time
+- `# NEW_FILE: <path>` — file exists on only one side
+
+The rest of the output is standard unified diff format:
 - Lines prefixed with `-` show what's currently in the **target** (home directory)
 - Lines prefixed with `+` show what the **source** (this repo) wants to write
+
+Timestamp logic:
+- **Source files**: uses `git log` commit time (stable across checkouts), unless the file has uncommitted local changes, in which case file mtime is used
+- **Target files**: always uses file mtime
 
 If there are no differences, tell the user everything is in sync and stop.
 
@@ -75,7 +90,10 @@ If there are no differences, tell the user everything is in sync and stop.
 Present a clear, concise summary of each file that has differences. Group them logically (e.g., fish config, git config, etc.) and for each file explain:
 - The **target path** (e.g., `~/.config/fish/config.fish`)
 - A brief description of what changed (e.g., "source adds a new alias for `ll`", "target has a manually-added PATH entry that source would remove")
-- The **direction** of the change: is the source ahead (you made changes in the repo), or is the target ahead (you made changes directly in `~/`)
+- The **direction** of the change, as reported by the `rich-diff.sh` direction headers:
+  - **SOURCE_AHEAD** — you made changes in the repo; default suggestion is **Apply**
+  - **TARGET_AHEAD** — you made changes directly in `~/`; default suggestion is **Update source**
+  - **SAME_TIME** or **NEW_FILE** — use diff content to judge
 
 Use your judgment about how much detail to show. For small diffs, show them inline. For large diffs, summarize and offer to show details on request.
 
