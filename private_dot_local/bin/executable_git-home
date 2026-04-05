@@ -1,0 +1,33 @@
+#!/bin/sh
+set -e
+
+current_branch=$(git branch --show-current)
+
+# Find the default branch
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+if [ -z "$default_branch" ]; then
+    echo "Could not determine default branch (try: git remote set-head origin --auto)"
+    exit 1
+fi
+
+# Switch to default branch if not already on it
+if [ "$current_branch" != "$default_branch" ]; then
+    git checkout "$default_branch"
+fi
+
+# Pull latest and prune remote tracking branches
+git pull
+git fetch --prune
+
+# Check if the previous branch's remote has been deleted
+if [ -n "$current_branch" ] && [ "$current_branch" != "$default_branch" ]; then
+    remote_status=$(git branch -vv | grep "^  $current_branch " | grep ': gone]')
+    if [ -n "$remote_status" ]; then
+        echo ""
+        printf "Remote branch '%s' has been deleted. Delete local branch? [y/N] " "$current_branch"
+        read -r confirm
+        if [ "$confirm" = y ] || [ "$confirm" = Y ]; then
+            git branch -d "$current_branch" 2>/dev/null || git branch -D "$current_branch"
+        fi
+    fi
+fi
