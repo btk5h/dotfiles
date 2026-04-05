@@ -8,7 +8,9 @@ packages:
     work: []
   formulae:
     common:
+      - bat
       - chezmoi
+      - fd
       - fish
       - fisher
       - fzf
