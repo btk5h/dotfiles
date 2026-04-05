@@ -7,3 +7,5 @@ font-thicken-strength = 255
 background-opacity = 0.99
 
 window-padding-x = 8
+
+keybind = super+,=text:ghostty +edit-config\n
