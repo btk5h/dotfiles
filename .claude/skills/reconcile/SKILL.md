@@ -1,6 +1,12 @@
 ---
 name: reconcile
 description: Reconcile differences between chezmoi source state and target state (home directory), including Homebrew packages. Use this skill when the user wants to review pending dotfile changes, sync their chezmoi source with what's actually in their home directory, resolve drift between managed files, reconcile packages, or decide file-by-file whether to apply or pull back changes. Trigger on phrases like "reconcile", "sync dotfiles", "chezmoi diff", "what changed in my dotfiles", "dotfile drift", "reconcile packages", "brew drift", "package drift", or any mention of source vs target state differences.
+allowed-tools:
+  - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh")
+  - Bash(chezmoi diff *)
+  - Bash(chezmoi data *)
+  - Bash(chezmoi cat *)
+  - Bash(chezmoi source-path *)
 ---
 
 # Reconcile
