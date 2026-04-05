@@ -50,9 +50,9 @@ DECLARED_CASKS=$(declared_list casks)
 # Use `--installed-on-request` to only surface formulae the user explicitly installed.
 # Anything installed as a dependency is automatically treated as ignored.
 INSTALLED_TAPS=$(brew tap 2>/dev/null || true)
-INSTALLED_FORMULAE=$(brew list --formula --installed-on-request -1 2>/dev/null || true)
+INSTALLED_FORMULAE=$(brew list --formula --installed-on-request --full-name -1 2>/dev/null || true)
 INSTALLED_CASKS=$(brew list --cask -1 2>/dev/null || true)
-DEP_FORMULAE=$(brew list --formula --installed-as-dependency -1 2>/dev/null || true)
+DEP_FORMULAE=$(brew list --formula --installed-as-dependency --full-name -1 2>/dev/null || true)
 
 # --- Load ignored packages ---
 IGNORED=""
