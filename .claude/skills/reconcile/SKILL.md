@@ -75,9 +75,11 @@ This wraps `chezmoi diff` output, injecting a direction comment before each file
 - `# SAME_TIME: <path>` — both sides have the same modification time
 - `# NEW_FILE: <path>` — file exists on only one side
 
-The rest of the output is standard unified diff format:
+The rest of the output is standard unified diff format. **This is a chezmoi diff, not a git diff** — the sides are different from what you might expect:
 - Lines prefixed with `-` show what's currently in the **target** (home directory)
 - Lines prefixed with `+` show what the **source** (this repo) wants to write
+
+This means the diff shows the transformation chezmoi would apply: remove `-` lines from target, replace with `+` lines from source. **Apply** always means "replace target with source" (i.e., `-` lines get replaced by `+` lines). **Update source** always means "replace source with target" (i.e., keep the `-` lines).
 
 Timestamp logic:
 - **Source files**: uses `git log` commit time (stable across checkouts), unless the file has uncommitted local changes, in which case file mtime is used
@@ -95,13 +97,22 @@ Present a clear, concise summary of each file that has differences. Group them l
   - **TARGET_AHEAD** — you made changes directly in `~/`; default suggestion is **Update source**
   - **SAME_TIME** or **NEW_FILE** — use diff content to judge
 
+**Describing what changed — read the diff carefully relative to direction:**
+
+When describing changes, remember that chezmoi diff always shows target (`-`) → source (`+`), regardless of which side is newer. This can be counterintuitive:
+
+- **SOURCE_AHEAD**: The `+` lines are the newer changes (what you changed in source). The `-` lines are the older target state. Applying writes `+` lines to target. Describe changes as "source changed X to Y" where Y is in the `+` lines.
+- **TARGET_AHEAD**: The `-` lines are the newer changes (what you changed in target/home dir). The `+` lines are the older source state. Applying would *revert* the target back to the `+` lines. Update source would keep the `-` lines. Describe changes as "target changed X to Y" where Y is in the `-` lines.
+
+When presenting options, describe the concrete effect of each action based on the actual diff content (e.g., "Apply (revert to old-value)" or "Update source (keep new-value)"), so the user knows exactly what each choice does.
+
 Use your judgment about how much detail to show. For small diffs, show them inline. For large diffs, summarize and offer to show details on request.
 
 ### Step 4: Walk through each file
 
 For each file with differences, ask the user what they want to do. Present these options clearly:
 
-1. **Apply** -- Write the source state to the target (this is what `chezmoi apply` would do for this file). No action needed now; it will happen when they run `chezmoi apply`.
+1. **Apply** -- Write the source state to the target (run `chezmoi apply <target-path>` for this file). Use the direction-aware descriptions from Step 3 to explain what this concretely does (e.g., for TARGET_AHEAD, this reverts the target back to the source version).
 
 2. **Update source** -- The target has the version they want to keep. Update the source state to match the target by running `chezmoi add <target-path>`, which copies the target file back into the source state. For template files (`.tmpl`), this is more nuanced -- explain that `chezmoi add` will capture the rendered output and they may need to manually update the template. Offer to help edit the template directly.
 
