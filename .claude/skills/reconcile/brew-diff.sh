@@ -79,7 +79,7 @@ diff_category() {
     local declared=$2
     local installed=$3
 
-    # Missing: declared but not installed
+    # Missing: declared in repo but not installed on this machine
     if [ -n "$declared" ]; then
         while IFS= read -r pkg; do
             [ -z "$pkg" ] && continue
@@ -89,7 +89,7 @@ diff_category() {
         done <<< "$declared"
     fi
 
-    # Extra: installed but not declared
+    # Extra: installed on this machine but not declared in repo
     if [ -n "$installed" ]; then
         while IFS= read -r pkg; do
             [ -z "$pkg" ] && continue
