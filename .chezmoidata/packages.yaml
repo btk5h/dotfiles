@@ -11,6 +11,7 @@ packages:
       - chezmoi
       - fish
       - fisher
+      - fzf
       - gh
       - git-absorb
       - jq
