@@ -15,7 +15,7 @@ nnoremap <Leader>p :action osmedile.intellij.stringmanip.PopupChoiceAction<CR>
 " redo
 nnoremap <Leader>u :action VimRedo<CR>
 " rename
-nnoremap <Leader>r :action RenameElement<CR>i
+nnoremap <Leader>r :action RenameElement<CR><Esc>l
 " refactor
 nnoremap <Leader>R :action Refactorings.QuickListPopupAction<CR>
 nnoremap <Leader>g :action Generate<CR>
@@ -44,3 +44,6 @@ nnoremap ge :action GotoNextError<CR>
 nnoremap gE :action GotoPreviousError<CR>
 
 set surround
+
+set quickscope
+let g:qs_highlight_on_keys = ['f', 'F', 't', 'T']
