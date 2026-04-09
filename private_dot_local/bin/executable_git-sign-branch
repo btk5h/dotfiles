@@ -1,0 +1,62 @@
+#!/bin/sh
+set -e
+
+current_branch=$(git branch --show-current)
+
+# Must be on a branch
+if [ -z "$current_branch" ]; then
+    echo "Error: Not on a branch (detached HEAD state)"
+    exit 1
+fi
+
+# Find the default branch
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+if [ -z "$default_branch" ]; then
+    echo "Could not determine default branch (try: git remote set-head origin --auto)"
+    exit 1
+fi
+
+# Can't run on the default branch itself
+if [ "$current_branch" = "$default_branch" ]; then
+    echo "Error: Cannot sign commits on the default branch '$default_branch'"
+    exit 1
+fi
+
+# Check local branch is not behind its remote
+remote_tracking=$(git rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || echo "")
+if [ -n "$remote_tracking" ]; then
+    git fetch origin "$current_branch" 2>/dev/null
+    behind=$(git rev-list HEAD.."$remote_tracking" --count 2>/dev/null || echo 0)
+    if [ "$behind" -gt 0 ]; then
+        echo "Error: Local branch '$current_branch' is $behind commit(s) behind '$remote_tracking'."
+        echo "Run 'git pull --rebase' first."
+        exit 1
+    fi
+fi
+
+# Fetch latest default branch to find accurate merge base
+git fetch origin "$default_branch" 2>/dev/null
+base=$(git merge-base HEAD "origin/$default_branch")
+
+# Ensure local default branch matches remote
+local_base=$(git rev-parse "$default_branch" 2>/dev/null || echo "")
+remote_base=$(git rev-parse "origin/$default_branch")
+if [ -n "$local_base" ] && [ "$local_base" != "$remote_base" ]; then
+    echo "Updating local '$default_branch' to match remote..."
+    git fetch origin "$default_branch:$default_branch" 2>/dev/null || true
+fi
+
+commit_count=$(git rev-list "$base"..HEAD --count)
+if [ "$commit_count" -eq 0 ]; then
+    echo "No commits to sign between '$current_branch' and '$default_branch'."
+    exit 0
+fi
+
+echo "Re-signing $commit_count commit(s) on '$current_branch'..."
+git rebase --exec 'git commit --amend --no-edit -S' "$base"
+
+echo ""
+echo "Done. $commit_count commit(s) signed."
+if [ -n "$remote_tracking" ]; then
+    echo "Force-push required: git push --force-with-lease"
+fi
