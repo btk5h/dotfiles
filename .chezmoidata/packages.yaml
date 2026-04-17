@@ -2,6 +2,7 @@ packages:
   taps:
     common:
       - hashicorp/tap
+      - manaflow-ai/cmux
     personal:
       - fluxcd/tap
       - siderolabs/talos
@@ -31,6 +32,7 @@ packages:
       - 1password-cli
       - bartender
       - cleanshot
+      - cmux
       - docker
       - docker-desktop
       - firefox
