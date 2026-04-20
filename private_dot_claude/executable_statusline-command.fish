@@ -4,10 +4,11 @@
 read -lz input
 
 # Extract values from JSON
-set -l json_values (echo $input | jq -r '[.workspace.current_dir, .model.display_name, .context_window.used_percentage // ""] | @tsv')
+set -l json_values (echo $input | jq -r '[.workspace.current_dir, .model.display_name, .context_window.used_percentage // "", .rate_limits.five_hour.used_percentage // ""] | @tsv')
 set -l cwd (echo $json_values | cut -f1)
 set -l model (echo $json_values | cut -f2)
 set -l ctx_pct (echo $json_values | cut -f3)
+set -l quota_pct (echo $json_values | cut -f4)
 
 # Color codes
 # tide_git_color_branch: 5FD700 (RGB: 95, 215, 0)
@@ -182,8 +183,9 @@ if test -n "$ctx_pct"
     # Add full blocks
     test $full_blocks -gt 0; and set bar "$bar"(string repeat -n $full_blocks '█')
 
-    # Add partial block (eighths)
+    # Add partial block (eighths): fg = usage color, bg = empty-track gray so the eighths glyph is visible
     if test $remainder -gt 0
+        set bar "$bar"(printf '\033[38;2;%s;48;2;80;80;80m' $usage_color)
         switch $remainder
             case 1; set bar "$bar▏"
             case 2; set bar "$bar▎"
@@ -200,10 +202,58 @@ if test -n "$ctx_pct"
         set bar "$bar"(printf '\033[38;2;80;80;80;48;2;80;80;80m')(string repeat -n $empty_blocks '░')
     end
 
-    set -a bar (printf '\033[0m')  # Reset colors
+    set bar "$bar"(printf '\033[0m')  # Reset colors (concat, not list-append, to avoid stray joining space)
 
-    set ctx "   ⛁ $pct% $bar"
+    set ctx "  \uf472 $pct% $bar"
+end
+
+# Build quota usage string with golden progress bar (no gradient)
+set -l quota ""
+if test -n "$quota_pct"
+    set -l pct (math -s0 $quota_pct)
+
+    # Golden color: RGB(218, 165, 32)
+    set -l GOLD "218;165;32"
+
+    # Calculate progress across 5 characters using eighths blocks
+    # Total eighths: 5 characters × 8 eighths = 40 eighths
+    set -l total_eighths 40
+    set -l filled_eighths (math -s0 "$pct * $total_eighths / 100")
+
+    # Calculate full blocks and remainder eighths
+    set -l full_blocks (math -s0 "$filled_eighths / 8")
+    set -l remainder (math -s0 "$filled_eighths % 8")
+    set -l empty_blocks (math -s0 "5 - $full_blocks - "(test $remainder -gt 0; and echo 1; or echo 0))
+
+    # Build progress bar with solid golden color
+    set -l bar (printf '\033[38;2;%s;48;2;%sm' $GOLD $GOLD)
+
+    # Add full blocks
+    test $full_blocks -gt 0; and set bar "$bar"(string repeat -n $full_blocks '█')
+
+    # Add partial block: fg = gold, bg = empty-track gray
+    if test $remainder -gt 0
+        set bar "$bar"(printf '\033[38;2;%s;48;2;80;80;80m' $GOLD)
+        switch $remainder
+            case 1; set bar "$bar▏"
+            case 2; set bar "$bar▎"
+            case 3; set bar "$bar▍"
+            case 4; set bar "$bar▌"
+            case 5; set bar "$bar▋"
+            case 6; set bar "$bar▊"
+            case 7; set bar "$bar▉"
+        end
+    end
+
+    # Add empty blocks with gray color
+    if test $empty_blocks -gt 0
+        set bar "$bar"(printf '\033[38;2;80;80;80;48;2;80;80;80m')(string repeat -n $empty_blocks '░')
+    end
+
+    set bar "$bar"(printf '\033[0m')
+
+    set quota "  \uf4de $pct% $bar"
 end
 
 # Output final status line: line 1 = model + context, line 2 = directory + branch
-printf "%b\n%b" $model_str$ctx $dir$git_branch
+printf "%b\n%b" $model_str$ctx$quota $dir$git_branch
