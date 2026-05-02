@@ -49,5 +49,5 @@ packages:
       - permute
       - sketch
       - steam
-      - tailscale
+      - tailscale-app
     work: []
