@@ -1,6 +1,7 @@
 eval (/opt/homebrew/bin/brew shellenv)
 
 fish_add_path "$HOME/.local/bin"
+fish_add_path "$HOME/.bun/bin"
 {{ if eq .profile "work" }}
 # ASDF configuration code
 if test -z $ASDF_DATA_DIR
