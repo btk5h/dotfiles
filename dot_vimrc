@@ -95,6 +95,8 @@ Plug 'andymass/vim-matchup'
 
 Plug 'scrooloose/nerdtree'
 
+Plug 'catppuccin/vim', { 'as': 'catppuccin' }
+
 call plug#end()
 
 " airline
