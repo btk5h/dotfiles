@@ -8,6 +8,9 @@ allowed-tools:
   - Bash(chezmoi data *)
   - Bash(chezmoi cat *)
   - Bash(chezmoi source-path *)
+  - Bash(git fetch *)
+  - Bash(git status *)
+  - Bash(git log *)
 ---
 
 # Reconcile
@@ -28,6 +31,18 @@ Chezmoi uses "source state" and "target state" but those terms are easy to mix u
 When running chezmoi commands, "source" = repo and "target" = this machine.
 
 ## Workflow
+
+### Step 0: Pull latest from origin
+
+**Always do this first.** Reconciling against a stale local branch wastes effort — upstream commits may already declare packages or update files you're about to flag as drift.
+
+Run `git fetch origin` and check `git status -sb`. If the branch is behind `origin/main`, pull before proceeding:
+
+- **Clean working tree, behind only**: `git pull --rebase origin main`
+- **Behind and ahead** (diverged): show the local commits with `git log --oneline HEAD..origin/main` and `git log --oneline origin/main..HEAD`, then ask the user how to handle it (rebase, merge, or pause)
+- **Uncommitted changes**: stash them (`git stash push -m "reconcile-wip"`), pull/rebase, then `git stash pop`
+
+Only after the local branch is up to date should you proceed to Step 1.
 
 ### Step 1: Reconcile Homebrew packages
 
