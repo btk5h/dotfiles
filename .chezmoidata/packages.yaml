@@ -24,6 +24,8 @@ packages:
     personal:
       - fluxcd/tap/flux
       - helm
+      - kopia
+      - mise
       - siderolabs/talos/talosctl
       - velero
     work:
