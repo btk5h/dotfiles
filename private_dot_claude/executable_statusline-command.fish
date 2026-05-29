@@ -4,11 +4,12 @@
 read -lz input
 
 # Extract values from JSON
-set -l json_values (echo $input | jq -r '[.workspace.current_dir, .model.display_name, .context_window.used_percentage // "", .rate_limits.five_hour.used_percentage // ""] | @tsv')
+set -l json_values (echo $input | jq -r '[.workspace.current_dir, .model.display_name, .context_window.used_percentage // "", .rate_limits.five_hour.used_percentage // "", (.cost.total_cost_usd // 0 | tostring)] | @tsv')
 set -l cwd (echo $json_values | cut -f1)
 set -l model (echo $json_values | cut -f2)
 set -l ctx_pct (echo $json_values | cut -f3)
 set -l quota_pct (echo $json_values | cut -f4)
+set -l session_cost (echo $json_values | cut -f5)
 
 # Color codes
 # tide_git_color_branch: 5FD700 (RGB: 95, 215, 0)
@@ -17,6 +18,17 @@ set -l COLOR_ANCHOR_BOLD '\033[1;38;2;0;175;255m'
 set -l COLOR_DIR '\033[38;2;0;135;175m'
 set -l COLOR_RESET '\033[0m'
 set -l COLOR_CLAUDE '\033[38;2;217;119;6m'
+
+# JJ colors matching tide's _tide_item_vcs (tide_jj_bg_color = normal)
+set -l JJ_COLOR '\033[38;2;95;215;0m'  # tide_jj_color 5FD700 — parens
+set -l AT_COLOR '\033[32m'              # green — @ symbol
+set -l BOLD '\033[1m'                   # bold on
+set -l CID_COLOR '\033[95m'            # brmagenta — change_id and bookmarks
+set -l COMMIT_COLOR '\033[94m'         # brblue — commit_id
+set -l DIRTY_COLOR '\033[33m'          # yellow — dirty *
+set -l CLEAN_COLOR '\033[92m'          # brgreen — (empty) / clean
+set -l ARROW_COLOR '\033[90m'          # brblack — ahead/behind arrows
+set -l FG_RESET '\033[39m'             # foreground-only reset (preserves bold)
 
 # Get parent process ID
 function get_parent_pid -a pid
@@ -101,29 +113,193 @@ if test -z "$dir"
     set dir (printf "%b%s%b" $COLOR_ANCHOR_BOLD $fallback_path $COLOR_RESET)
 end
 
-# Get git branch if in a git repository
+# Get VCS info — tide-style jj format if in a jj repo, else git fallback
 set -l git_branch ""
-if set -l branch (git -C $cwd --no-optional-locks branch --show-current 2>/dev/null; or git -C $cwd --no-optional-locks rev-parse --short HEAD 2>/dev/null)
-    if test -n "$branch"
-        set -l full_branch $branch
-        # Truncate branch name to 24 characters for display only
-        if test (string length $branch) -gt 24
-            set branch (string sub -l 23 $branch)"…"
+
+# Find jj repo root by walking up from $cwd looking for a .jj directory.
+# This works regardless of whether $cwd is the root or a subdirectory, and avoids
+# spawning a subprocess just for detection.
+set -l jj_root ""
+set -l _search $cwd
+while test -n "$_search"
+    if test -d "$_search/.jj"
+        set jj_root $_search
+        break
+    end
+    set -l _parent (string replace -r '/[^/]+$' '' $_search)
+    test "$_parent" = "$_search"; and break
+    set _search $_parent
+end
+if test -n "$jj_root"
+    # Optimization: single jj log call covers @, ahead count, behind count, and
+    # ancestor-bookmark lines — replacing 4 separate calls with 1.
+    #
+    # Revset: @ | trunk()..@ | trunk()..@ ~ @
+    #   simplifies to: trunk()..@ | @
+    #   which is just:  trunk()..@ (since @ is always in trunk()..@ unless @ IS trunk())
+    #   so use:         @ | trunk()..@
+    #
+    # Template encodes each rev's role:
+    #   @ line  → "AT\t<change_id>\t<bookmarks>\t<commit_id>\t<status>\t<desc>"
+    #   other   → "ANC\t<change_id>\t<bookmarks>\t.\t.\t."  (only if has bookmarks)
+    #   all     → also emit a "CNT\t.\n" for counting ahead
+    #
+    # We split the output afterwards in pure fish (no extra subprocesses).
+    # Every commit emits a ROW line; @ gets "AT" tag, ancestors with bookmarks get "ANC" tag.
+    # Format: "<tag>\t<change_id>\t<extra...>\n"
+    # ROW lines (all): "ROW\t<change_id>\n"   — used for counting + depth calculation
+    # AT  lines (@):   "AT\t<cid>\t<bms>\t<commit_id>\t<status>\t<desc>"
+    # ANC lines (anc with bookmarks): "ANC\t<cid>\t<bms>"
+    # A commit may emit both a ROW line and an AT/ANC line (template emits both for @/ancestors).
+    set -l combined_tmpl '"ROW\t" ++ change_id.shortest() ++ "\n" ++ if(current_working_copy, "AT\t" ++ change_id.shortest() ++ "\t" ++ coalesce(if(local_bookmarks, local_bookmarks.join(",")), ".") ++ "\t" ++ commit_id.shortest() ++ "\t" ++ coalesce(if(empty, "(empty)"), "*") ++ "\t" ++ if(description, description.first_line(), "(no desc)") ++ "\n") ++ if(!current_working_copy, if(local_bookmarks, "ANC\t" ++ change_id.shortest() ++ "\t" ++ local_bookmarks.join(",") ++ "\n"))'
+
+    # Call 1 of 2: combined query for @-info + ancestor bookmarks + ahead/depth data.
+    # --ignore-working-copy is intentionally NOT used here so the dirty flag is fresh.
+    set -l combined_out (jj -R $jj_root log -r '@ | trunk()..@' --no-graph --color=never -T $combined_tmpl 2>/dev/null)
+
+    # Call 2 of 2: behind count — commits on trunk() not yet in @'s ancestry.
+    # Uses --ignore-working-copy since we only need revision graph data.
+    set -l behind (jj -R $jj_root log -r '@..trunk()' --no-graph --ignore-working-copy --color=never -T '".\n"' 2>/dev/null | wc -l | string trim)
+
+    # Parse combined output into: raw (@ fields), anc_bm_lines, ordered_cids (for depth), ahead count
+    set -l raw ""
+    set -l anc_bm_lines
+    set -l ordered_cids  # ROW order: first = nearest to trunk, last = @
+    set -l ahead 0
+    set -l TAB (printf "\t")
+
+    for line in $combined_out
+        test -z "$line"; and continue
+        # Use real tab in glob prefix matching (fish \t in double-quotes is literal backslash-t)
+        if string match -q "ROW$TAB*" -- $line
+            set -l row_cid (string sub -s 5 -- $line | string trim)
+            set -a ordered_cids $row_cid
+            set ahead (math $ahead + 1)
+        else if string match -q "AT$TAB*" -- $line
+            set raw (string sub -s 4 -- $line)
+        else if string match -q "ANC$TAB*" -- $line
+            set -a anc_bm_lines (string sub -s 5 -- $line)
+        end
+    end
+
+    # ahead = total ROW lines = commits in trunk()..@ (@ is always within that range)
+
+    # Ancestor bookmark depth: count hops from each ancestor to @ using ordered_cids.
+    # ordered_cids is already populated by the parse loop above (ROW lines, trunk-first order).
+    set -l display_bookmarks
+    for anc_line in $anc_bm_lines
+        test -z "$anc_line"; and continue
+        set -l ap (string split \t -- $anc_line)
+        test (count $ap) -lt 2; and continue
+        set -l anc_cid $ap[1]
+
+        # Count how many steps from this ancestor up to @ in the ordered list
+        set -l depth 0
+        set -l counting 0
+        for oc in $ordered_cids
+            if test "$oc" = $anc_cid
+                set counting 1
+            else if test $counting -eq 1
+                set depth (math $depth + 1)
+            end
         end
 
-        # Check if remote is a GitHub URL and make branch name a clickable link
-        set -l remote_url (git -C $cwd --no-optional-locks remote get-url origin 2>/dev/null)
-        if string match -q '*github.com*' $remote_url
-            set -l github_url (string replace -r '^[^@]+@github\.com:' 'https://github.com/' $remote_url | string replace -r '\.git$' '')
-            set git_branch " \033]8;;$github_url/tree/$full_branch\a$COLOR_BRANCH$branch$COLOR_RESET\033]8;;\a"
-        else
-            set git_branch " $COLOR_BRANCH$branch$COLOR_RESET"
+        for bm in (string split ',' -- $ap[2])
+            set bm (string trim -- $bm)
+            test -n "$bm"; and set -a display_bookmarks "\033[35m$bm\033[22m\033[35m↑$depth\033[39m"
+        end
+    end
+
+    if test -n "$raw"
+        set -l parts (string split (printf "\t") -- $raw)
+
+        if test (count $parts) -ge 4
+            set -l cid $parts[1]
+            set -l bookmarks $parts[2]
+            set -l commit_id $parts[3]
+            set -l jj_st $parts[4]
+            set -l desc ""
+            test (count $parts) -ge 5; and set desc $parts[5]
+
+            # Status color: yellow for dirty *, brgreen for empty/clean
+            set -l st_color $DIRTY_COLOR
+            test "$jj_st" != "*"; and set st_color $CLEAN_COLOR
+
+            # Description: placeholder colored like status, real desc plain
+            set -l desc_label ""
+            if test -n "$desc"
+                if test "$desc" = "(no desc)"
+                    set desc_label " $st_color$desc$FG_RESET"
+                else
+                    set desc_label " $desc"
+                end
+            end
+
+            # Ancestor bookmark labels (magenta, matching tide's display_bookmarks)
+            set -l anc_bm_label ""
+            test (count $display_bookmarks) -gt 0; and set anc_bm_label " "(string join ' ' $display_bookmarks)
+
+            # Ahead/behind arrows: non-bold gray matching tide
+            set -l arrows ""
+            test "$ahead" -gt 0 2>/dev/null; and set arrows "$arrows \033[22m$ARROW_COLOR↑$ahead$FG_RESET"
+            test "$behind" -gt 0 2>/dev/null; and set arrows "$arrows \033[22m$ARROW_COLOR↓$behind$FG_RESET"
+
+            # Format bookmarks with optional GitHub hyperlink
+            set -l bm_str ""
+            if test "$bookmarks" != "."
+                # Prefer jj's remote list; fall back to git only if jj returns nothing.
+                # Both use --ignore-working-copy / --no-optional-locks to avoid any snapshot.
+                set -l remote_url (jj -R $jj_root git remote list --ignore-working-copy 2>/dev/null | head -1 | string replace -r '^[^\t]+\t' '')
+                test -z "$remote_url"; and set remote_url (git -C $jj_root --no-optional-locks remote get-url origin 2>/dev/null)
+
+                set -l first_bm (string split ',' -- $bookmarks)[1]
+                set first_bm (string trim -- $first_bm)
+                set -l display_bm $first_bm
+                test (string length $first_bm) -gt 24; and set display_bm (string sub -l 23 $first_bm)"…"
+
+                if string match -q '*github.com*' $remote_url
+                    set -l github_url (string replace -r '^[^@]+@github\.com:' 'https://github.com/' $remote_url | string replace -r '\.git$' '')
+                    set bm_str " \033]8;;$github_url/tree/$first_bm\a$CID_COLOR$display_bm$FG_RESET\033]8;;\a"
+                else
+                    set bm_str " $CID_COLOR$display_bm$FG_RESET"
+                end
+            end
+
+            # Tide format: (@ cid [at-bookmarks] commit_id status [desc] [ancestor-bms] [↑ahead] [↓behind])
+            set git_branch " $FG_RESET$JJ_COLOR($FG_RESET$BOLD$AT_COLOR@$FG_RESET $CID_COLOR$cid$FG_RESET$bm_str $COMMIT_COLOR$commit_id$FG_RESET $st_color$jj_st$FG_RESET$desc_label$anc_bm_label$arrows$COLOR_RESET$JJ_COLOR)$COLOR_RESET"
+        end
+    end
+else
+    # Fall back to git
+    if set -l branch (git -C $cwd --no-optional-locks branch --show-current 2>/dev/null; or git -C $cwd --no-optional-locks rev-parse --short HEAD 2>/dev/null)
+        if test -n "$branch"
+            set -l full_branch $branch
+            # Truncate branch name to 24 characters for display only
+            if test (string length $branch) -gt 24
+                set branch (string sub -l 23 $branch)"…"
+            end
+
+            # Check if remote is a GitHub URL and make branch name a clickable link
+            set -l remote_url (git -C $cwd --no-optional-locks remote get-url origin 2>/dev/null)
+            if string match -q '*github.com*' $remote_url
+                set -l github_url (string replace -r '^[^@]+@github\.com:' 'https://github.com/' $remote_url | string replace -r '\.git$' '')
+                set git_branch " \033]8;;$github_url/tree/$full_branch\a$COLOR_BRANCH$branch$COLOR_RESET\033]8;;\a"
+            else
+                set git_branch " $COLOR_BRANCH$branch$COLOR_RESET"
+            end
         end
     end
 end
 
 # Format model string with Claude Code orange ✻
 set -l model_str "$COLOR_CLAUDE✻$COLOR_RESET $model"
+
+# Format session cost string
+set -l cost_str ""
+if test -n "$session_cost"; and test "$session_cost" != "0"
+    set -l formatted_cost (printf '$%.2f' $session_cost)
+    set cost_str "   \033[38;2;218;165;32m$formatted_cost\033[0m"
+end
 
 # Function to get color for usage percentage
 function get_usage_color -a pct
@@ -255,5 +431,5 @@ if test -n "$quota_pct"
     set quota "  \uf4de $pct% $bar"
 end
 
-# Output final status line: line 1 = model + context, line 2 = directory + branch
-printf "%b\n%b" $model_str$ctx$quota $dir$git_branch
+# Output final status line: line 1 = model + context + cost, line 2 = directory + branch
+printf "%b\n%b" $model_str$ctx$quota$cost_str $dir$git_branch
