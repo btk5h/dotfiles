@@ -16,3 +16,8 @@ log/
 
 # Claude
 .claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+
+/.specify/feature.json
+/specs/**/*.md
