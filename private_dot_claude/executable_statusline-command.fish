@@ -225,12 +225,21 @@ if test -n "$jj_root"
             set -l st_color $DIRTY_COLOR
             test "$jj_st" != "*"; and set st_color $CLEAN_COLOR
 
-            # Description: placeholder colored like status, real desc plain
+            # Description: truncate to match tide's _tide_item_vcs (tide_jj_description_length,
+            # default 24; tide_jj_show_description, default true). Placeholder colored like
+            # status, real desc plain.
+            set -l show_desc true
+            set -q tide_jj_show_description; and set show_desc $tide_jj_show_description
+            set -l desc_length 24
+            set -q tide_jj_description_length; and set desc_length $tide_jj_description_length
             set -l desc_label ""
-            if test -n "$desc"
+            if test -n "$desc"; and test "$show_desc" = true
                 if test "$desc" = "(no desc)"
                     set desc_label " $st_color$desc$FG_RESET"
                 else
+                    if test $desc_length -gt 0; and test (string length -- $desc) -gt $desc_length
+                        set desc (string sub -l $desc_length -- $desc)"…"
+                    end
                     set desc_label " $desc"
                 end
             end
