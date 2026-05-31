@@ -22,8 +22,9 @@ set --erase _asdf_shims
 set -gx PROTO_HOME "$HOME/.proto"
 fish_add_path "$PROTO_HOME/shims"
 fish_add_path "$PROTO_HOME/bin"
-{{ end -}}
-
-if status is-interactive
+{{ end }}
+# Apply Tide prompt configuration once (persisted in universal variables).
+if not set -q tide_config_applied
     tide configure --auto --style=Lean --prompt_colors='True color' --show_time='24-hour format' --lean_prompt_height='Two lines' --prompt_connection=Dotted --prompt_connection_andor_frame_color=Lightest --prompt_spacing=Sparse --icons='Few icons'
+    set -U tide_config_applied 1
 end
