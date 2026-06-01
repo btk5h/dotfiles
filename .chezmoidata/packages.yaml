@@ -2,7 +2,6 @@ packages:
   taps:
     common:
       - hashicorp/tap
-      - manaflow-ai/cmux
     personal:
       - fluxcd/tap
       - siderolabs/talos
