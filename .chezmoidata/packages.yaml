@@ -43,11 +43,11 @@ packages:
       - font-jetbrains-mono-nerd-font
       - ghostty
       - jetbrains-toolbox
-      - mimestream
       - raycast
     personal:
       - discord
       - downie
+      - mimestream
       - permute
       - sketch
       - steam
