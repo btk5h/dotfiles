@@ -25,7 +25,10 @@ brew tap {{ . }} 2>/dev/null || true
 echo "==> Installing formulae..."
 INSTALLED_FORMULAE=$(brew list --formula -1)
 {{ range $formulae -}}
-if ! echo "$INSTALLED_FORMULAE" | grep -qx '{{ . }}'; then
+{{/* Match on the short name: a tap-qualified formula (fluxcd/tap/flux) is
+     listed by `brew list` under its short name (flux), so an exact match on
+     the full name would reinstall it on every run. */ -}}
+if ! echo "$INSTALLED_FORMULAE" | grep -qx '{{ base . }}'; then
     echo "  Installing {{ . }}..."
     brew install {{ . }}
 else
