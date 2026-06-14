@@ -4,7 +4,6 @@ packages:
       - hashicorp/tap
     personal:
       - fluxcd/tap
-      - siderolabs/talos
     work: []
   formulae:
     common:
@@ -15,6 +14,7 @@ packages:
       - fisher
       - fzf
       - gh
+      - git
       - git-absorb
       - jj
       - jq
@@ -25,7 +25,7 @@ packages:
       - helm
       - kopia
       - mise
-      - siderolabs/talos/talosctl
+      - talosctl
       - velero
     work:
       - bazelisk
@@ -48,6 +48,7 @@ packages:
       - downie
       - mimestream
       - permute
+      - protonvpn
       - sketch
       - steam
       - tailscale-app
