@@ -1,0 +1,8 @@
+#:schema https://docs.jj-vcs.dev/latest/config-schema.json
+
+[user]
+name = "Bryan Terce"
+email = "{{ .email }}"
+
+[aliases]
+home = ["util", "exec", "--", "sh", "-c", "jj git fetch && jj new 'trunk()'"]
