@@ -6,3 +6,9 @@ email = "{{ .email }}"
 
 [aliases]
 home = ["util", "exec", "--", "sh", "-c", "jj git fetch && jj new 'trunk()'"]
+{{ if eq .profile "work" }}
+[signing]
+behavior = "own"
+backend = "ssh"
+key = "~/.ssh/id_rsa.pub"
+{{ end }}
