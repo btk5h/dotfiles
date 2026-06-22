@@ -28,3 +28,11 @@ if not set -q tide_config_applied
     tide configure --auto --style=Lean --prompt_colors='True color' --show_time='24-hour format' --lean_prompt_height='Two lines' --prompt_connection=Dotted --prompt_connection_andor_frame_color=Lightest --prompt_spacing=Sparse --icons='Few icons'
     set -U tide_config_applied 1
 end
+{{ if eq .profile "personal" }}
+# mise: Homebrew's vendor conf.d auto-activates mise *before* this file runs, so it
+# snapshots PATH before brew shellenv has put Homebrew first, then re-applies that
+# stale order on every prompt. Disable that early activation and activate here,
+# after PATH is built, so mise captures the correct order.
+set -q MISE_FISH_AUTO_ACTIVATE; or set -Ux MISE_FISH_AUTO_ACTIVATE 0
+/opt/homebrew/bin/mise activate fish | source
+{{ end -}}
