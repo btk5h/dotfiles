@@ -2,28 +2,38 @@
 # brew-diff.sh — Compare declared Homebrew packages against installed ones.
 # Outputs a structured diff that the reconcile skill can parse.
 #
-# Usage: bash .claude/skills/reconcile/brew-diff.sh
+# Usage: bash .claude/skills/reconcile/brew-diff.sh [--ignored]
+#   --ignored  List ignored packages individually (default: count only)
 #
 # Output format (one package per line):
 #   PROFILE: <active profile>
-#   MISSING TAP: <tap>
-#   MISSING FORMULA: <formula>
-#   MISSING CASK: <cask>
-#   EXTRA TAP: <tap>
-#   EXTRA FORMULA: <formula>
-#   EXTRA CASK: <cask>
-#   IGNORED TAP: <tap>
-#   IGNORED FORMULA: <formula>
-#   IGNORED CASK: <cask>
+#   MISSING TAP|FORMULA|CASK: <pkg>   — declared in repo, not installed
+#   EXTRA TAP|FORMULA|CASK: <pkg>     — installed, not declared
+#   IGNORED TAP|FORMULA|CASK: <pkg>   — only with --ignored
+#   SUMMARY: missing=<n> extra=<n> ignored=<n>
+#   IN_SYNC: ...                      — when missing=0 and extra=0
+#   NEXT: ...                         — suggested follow-up commands
 #
 # Exit codes:
 #   0 — diff computed (may or may not have differences)
 #   1 — brew not installed or chezmoi data unavailable
+#   2 — unknown flag
 
 set -euo pipefail
 
+SHOW_IGNORED=0
+for arg in "$@"; do
+    case "$arg" in
+        --ignored) SHOW_IGNORED=1 ;;
+        *)
+            echo "ERROR: unknown flag '$arg' (supported: --ignored)"
+            exit 2
+            ;;
+    esac
+done
+
 if ! command -v brew &>/dev/null && ! [ -x /opt/homebrew/bin/brew ]; then
-    echo "ERROR: Homebrew is not installed" >&2
+    echo "ERROR: Homebrew is not installed — skip package reconciliation"
     exit 1
 fi
 
@@ -66,6 +76,10 @@ if [ -f "$IGNORED_FILE" ]; then
     IGNORED=$(grep -v '^#' "$IGNORED_FILE" | grep -v '^[[:space:]]*$' || true)
 fi
 
+MISSING_COUNT=0
+EXTRA_COUNT=0
+IGNORED_COUNT=0
+
 is_ignored() {
     local pkg=$1
     # Match bare name (exact) or tap-qualified entry ending with /<pkg>.
@@ -79,6 +93,24 @@ is_ignored() {
     return 1
 }
 
+emit_missing() {
+    echo "MISSING $1: $2"
+    MISSING_COUNT=$((MISSING_COUNT + 1))
+}
+
+emit_extra_or_ignored() {
+    local category_label=$1 pkg=$2
+    if is_ignored "$pkg"; then
+        IGNORED_COUNT=$((IGNORED_COUNT + 1))
+        if [ "$SHOW_IGNORED" = "1" ]; then
+            echo "IGNORED $category_label: $pkg"
+        fi
+    else
+        echo "EXTRA $category_label: $pkg"
+        EXTRA_COUNT=$((EXTRA_COUNT + 1))
+    fi
+}
+
 # --- Compute and output diff ---
 diff_category() {
     local category_label=$1
@@ -90,7 +122,7 @@ diff_category() {
         while IFS= read -r pkg; do
             [ -z "$pkg" ] && continue
             if ! echo "$installed" | grep -qx "$pkg"; then
-                echo "MISSING $category_label: $pkg"
+                emit_missing "$category_label" "$pkg"
             fi
         done <<< "$declared"
     fi
@@ -102,9 +134,7 @@ diff_category() {
             if [ -n "$declared" ] && echo "$declared" | grep -qx "$pkg"; then
                 continue
             fi
-            if ! is_ignored "$pkg"; then
-                echo "EXTRA $category_label: $pkg"
-            fi
+            emit_extra_or_ignored "$category_label" "$pkg"
         done <<< "$installed"
     fi
 }
@@ -124,7 +154,7 @@ diff_formulae() {
         while IFS= read -r pkg; do
             [ -z "$pkg" ] && continue
             if ! echo "$installed_all" | grep -qx "${pkg##*/}"; then
-                echo "MISSING FORMULA: $pkg"
+                emit_missing "FORMULA" "$pkg"
             fi
         done <<< "$declared"
     fi
@@ -142,9 +172,7 @@ diff_formulae() {
                 fi
             done <<< "$declared"
             [ -n "$declared_match" ] && continue
-            if ! is_ignored "$pkg"; then
-                echo "EXTRA FORMULA: $pkg"
-            fi
+            emit_extra_or_ignored "FORMULA" "$pkg"
         done <<< "$installed_request"
     fi
 }
@@ -152,3 +180,14 @@ diff_formulae() {
 diff_category "TAP" "$DECLARED_TAPS" "$INSTALLED_TAPS"
 diff_formulae "$DECLARED_FORMULAE" "$INSTALLED_FORMULAE" "$INSTALLED_FORMULAE_ALL"
 diff_category "CASK" "$DECLARED_CASKS" "$INSTALLED_CASKS"
+
+echo "SUMMARY: missing=$MISSING_COUNT extra=$EXTRA_COUNT ignored=$IGNORED_COUNT"
+if [ "$MISSING_COUNT" = "0" ] && [ "$EXTRA_COUNT" = "0" ]; then
+    echo "IN_SYNC: declared packages match installed packages — no action needed"
+fi
+if [ "$MISSING_COUNT" -gt 0 ]; then
+    echo "NEXT: run 'chezmoi apply' to install the $MISSING_COUNT missing package(s)"
+fi
+if [ "$SHOW_IGNORED" = "0" ] && [ "$IGNORED_COUNT" -gt 0 ]; then
+    echo "NEXT: re-run with --ignored to list the $IGNORED_COUNT ignored package(s)"
+fi

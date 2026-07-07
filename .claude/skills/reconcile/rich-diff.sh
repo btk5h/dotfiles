@@ -12,9 +12,13 @@
 # in which case file mtime is used (since local edits are more recent).
 # For machine files: always uses file mtime.
 #
-# Usage: bash .claude/skills/reconcile/rich-diff.sh
+# Usage: bash .claude/skills/reconcile/rich-diff.sh [--full] [path]
+#   --full  Disable per-file truncation
+#   path    Restrict the diff to one target path (implies --full)
 #
-# Output format — labeled diff with direction headers:
+# Output format — summary line, then labeled per-file diffs:
+#
+#   SUMMARY: files=2 machine_newer=1 repo_newer=1 same_time=0 new_file=0
 #
 #   === .config/ghostty/config (MACHINE_NEWER) ===
 #   @@ -1,6 +1,6 @@
@@ -34,18 +38,47 @@
 #   SAME_TIME     — both have the same modification time
 #   NEW_FILE      — file exists on one side only
 #
+# Per-file diffs longer than 60 lines are truncated with a
+# "TRUNCATED: ..." line telling you how to get the full diff.
+#
+# When there is no drift, prints "NO_DRIFT: ..." (never empty output).
+#
 # Exit codes:
-#   0 — completed (empty output means no drift)
+#   0 — completed (with or without drift)
+#   2 — unknown flag
 
 set -euo pipefail
+
+MAX_LINES_PER_FILE=60
+FULL=0
+FILTER_PATH=""
+for arg in "$@"; do
+    case "$arg" in
+        --full) FULL=1 ;;
+        --*)
+            echo "ERROR: unknown flag '$arg' (supported: --full, or a target path)"
+            exit 2
+            ;;
+        *) FILTER_PATH="$arg"; FULL=1 ;;
+    esac
+done
 
 CHEZMOI_SOURCE="$(chezmoi source-path)"
 TARGET_HOME="$(chezmoi target-path)"
 
 # Capture full diff output
-diff_output=$(chezmoi diff --no-pager 2>/dev/null) || true
+if [ -n "$FILTER_PATH" ]; then
+    diff_output=$(chezmoi diff --no-pager "$FILTER_PATH" 2>/dev/null) || true
+else
+    diff_output=$(chezmoi diff --no-pager 2>/dev/null) || true
+fi
 
 if [ -z "$diff_output" ]; then
+    if [ -n "$FILTER_PATH" ]; then
+        echo "NO_DRIFT: $FILTER_PATH matches the repo — nothing to reconcile"
+    else
+        echo "NO_DRIFT: repo and this machine are in sync — nothing to reconcile"
+    fi
     exit 0
 fi
 
@@ -91,14 +124,49 @@ direction_for() {
     fi
 }
 
+FILE_COUNT=0
+MACHINE_NEWER_COUNT=0
+REPO_NEWER_COUNT=0
+SAME_TIME_COUNT=0
+NEW_FILE_COUNT=0
+BODY=""
+current_file=""
+current_lines=0
+current_hidden=0
+
+flush_file() {
+    if [ -n "$current_file" ] && [ "$current_hidden" -gt 0 ]; then
+        BODY+="TRUNCATED: $current_hidden more line(s) — run rich-diff.sh $current_file for the full diff"$'\n'
+    fi
+    current_lines=0
+    current_hidden=0
+}
+
+append_line() {
+    if [ "$FULL" = "1" ] || [ "$current_lines" -lt "$MAX_LINES_PER_FILE" ]; then
+        BODY+="$1"$'\n'
+        current_lines=$((current_lines + 1))
+    else
+        current_hidden=$((current_hidden + 1))
+    fi
+}
+
 # Process diff output line by line, replacing -/+ with labels
 while IFS= read -r line; do
     if [[ "$line" == "diff --git a/"* ]]; then
+        flush_file
         # Extract target-relative path from diff header
         target_rel=$(echo "$line" | sed 's|^diff --git a/\(.*\) b/.*|\1|')
         direction=$(direction_for "$target_rel")
-        echo ""
-        echo "=== $target_rel ($direction) ==="
+        current_file="$target_rel"
+        FILE_COUNT=$((FILE_COUNT + 1))
+        case "$direction" in
+            MACHINE_NEWER) MACHINE_NEWER_COUNT=$((MACHINE_NEWER_COUNT + 1)) ;;
+            REPO_NEWER) REPO_NEWER_COUNT=$((REPO_NEWER_COUNT + 1)) ;;
+            SAME_TIME) SAME_TIME_COUNT=$((SAME_TIME_COUNT + 1)) ;;
+            NEW_FILE) NEW_FILE_COUNT=$((NEW_FILE_COUNT + 1)) ;;
+        esac
+        BODY+=$'\n'"=== $target_rel ($direction) ==="$'\n'
     elif [[ "$line" == "--- a/"* ]] || [[ "$line" == "--- /dev/null" ]]; then
         # Skip the old --- header (replaced by === header)
         continue
@@ -110,17 +178,21 @@ while IFS= read -r line; do
         continue
     elif [[ "$line" == "@@"* ]]; then
         # Keep hunk headers for context
-        echo "$line"
+        append_line "$line"
     elif [[ "$line" == "-"* ]]; then
         # Machine content (chezmoi diff: - = current target state)
-        echo "[MACHINE] ${line:1}"
+        append_line "[MACHINE] ${line:1}"
     elif [[ "$line" == "+"* ]]; then
         # Repo content (chezmoi diff: + = desired source state)
-        echo "[REPO]    ${line:1}"
+        append_line "[REPO]    ${line:1}"
     elif [[ "$line" == " "* ]]; then
         # Context line (same on both sides) — keep leading space for alignment
-        echo "         ${line:1}"
+        append_line "         ${line:1}"
     else
-        echo "$line"
+        append_line "$line"
     fi
 done <<< "$diff_output"
+flush_file
+
+echo "SUMMARY: files=$FILE_COUNT machine_newer=$MACHINE_NEWER_COUNT repo_newer=$REPO_NEWER_COUNT same_time=$SAME_TIME_COUNT new_file=$NEW_FILE_COUNT"
+printf '%s' "$BODY"

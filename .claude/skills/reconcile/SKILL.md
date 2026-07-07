@@ -3,7 +3,9 @@ name: reconcile
 description: Reconcile differences between the chezmoi repo and what's on this machine, including Homebrew packages. Use this skill when the user wants to review pending dotfile changes, sync their chezmoi repo with what's actually on this machine, resolve drift between managed files, reconcile packages, or decide file-by-file whether to apply or update the repo. Trigger on phrases like "reconcile", "sync dotfiles", "chezmoi diff", "what changed in my dotfiles", "dotfile drift", "reconcile packages", "brew drift", "package drift", or any mention of repo vs machine differences.
 allowed-tools:
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh")
+  - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh" *)
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh")
+  - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh" *)
   - Bash(chezmoi diff *)
   - Bash(chezmoi data *)
   - Bash(chezmoi cat *)
@@ -60,9 +62,13 @@ This script handles all data gathering (chezmoi data, brew list, .brew-ignored) 
 - `PROFILE: <name>` — the active chezmoi profile
 - `MISSING TAP/FORMULA/CASK: <pkg>` — declared in repo but not installed on this machine (will be installed on next `chezmoi apply`)
 - `EXTRA TAP/FORMULA/CASK: <pkg>` — installed on this machine but not declared in repo (needs user decision)
-- `IGNORED TAP/FORMULA/CASK: <pkg>` — installed on this machine, not declared in repo, but user chose to ignore (no action needed)
+- `SUMMARY: missing=<n> extra=<n> ignored=<n>` — always present; trust these counts instead of re-counting
+- `IN_SYNC: ...` — emitted when missing=0 and extra=0; packages need no further work
+- `NEXT: ...` — suggested follow-up commands (e.g. `chezmoi apply` for missing packages)
 
-If the script exits with code 1, Homebrew is not installed — skip package reconciliation.
+Ignored packages are reported as a count only. Re-run with `--ignored` if the user asks to see them individually.
+
+Exit codes: `0` success, `1` Homebrew not installed (skip package reconciliation), `2` unknown flag.
 
 #### 1b. Present summary
 
@@ -97,7 +103,13 @@ Run the rich-diff helper script to see all pending changes with timestamp-based 
 bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh"
 ```
 
-This wraps `chezmoi diff` output with **explicit side labels** — no ambiguous `-`/`+` prefixes. Each file's output looks like:
+This wraps `chezmoi diff` output with **explicit side labels** — no ambiguous `-`/`+` prefixes. Output starts with a summary line you can trust without re-counting:
+
+```
+SUMMARY: files=2 machine_newer=1 repo_newer=1 same_time=0 new_file=0
+```
+
+Each file's diff follows:
 
 ```
 === .config/fish/config.fish (MACHINE_NEWER) ===
@@ -122,7 +134,9 @@ Timestamp logic:
 - **Repo files**: uses `git log` commit time (stable across checkouts), unless the file has uncommitted local changes, in which case file mtime is used
 - **Machine files**: always uses file mtime
 
-If there are no differences, tell the user everything is in sync and stop.
+Large per-file diffs are truncated at 60 lines with a `TRUNCATED: <n> more line(s) — run rich-diff.sh <path> for the full diff` marker. When you need the full content of one file (e.g. before merging), re-run the script with that path as an argument; `--full` disables truncation entirely.
+
+If there is no drift, the script prints `NO_DRIFT: ...` (it never produces empty output) — tell the user everything is in sync and stop. Exit code `2` means an unknown flag was passed.
 
 ### Step 3: Summarize the changes
 
