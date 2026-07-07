@@ -25,6 +25,7 @@ packages:
       - helm
       - kopia
       - mise
+      - mole
       - talosctl
       - velero
     work:
