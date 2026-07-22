@@ -44,6 +44,7 @@ packages:
       - ghostty
       - jetbrains-toolbox
       - raycast
+      - scroll-reverser
     personal:
       - discord
       - downie
