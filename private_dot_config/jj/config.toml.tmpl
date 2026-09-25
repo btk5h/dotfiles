@@ -6,9 +6,17 @@ email = "{{ .email }}"
 
 [aliases]
 home = ["util", "exec", "--", "sh", "-c", "jj git fetch && jj new 'trunk()'"]
-{{ if eq .profile "work" }}
+
+[[--scope]]
+--when.environments = ["CLAUDECODE"]
+[--scope.ui]
+editor = "false"
+diff-editor = "false"
+merge-editor = "false"
+{{- if eq .profile "work" }}
+
 [signing]
 behavior = "own"
 backend = "ssh"
 key = "~/.ssh/id_rsa.pub"
-{{ end }}
+{{- end }}
