@@ -1,6 +1,6 @@
 ---
 name: reconcile
-description: Reconcile differences between the chezmoi repo and what's on this machine, including Homebrew packages. Use this skill when the user wants to review pending dotfile changes, sync their chezmoi repo with what's actually on this machine, resolve drift between managed files, reconcile packages, or decide file-by-file whether to apply or update the repo. Trigger on phrases like "reconcile", "sync dotfiles", "chezmoi diff", "what changed in my dotfiles", "dotfile drift", "reconcile packages", "brew drift", "package drift", or any mention of repo vs machine differences.
+description: Reconcile drift between the chezmoi repo and this machine, covering both dotfiles and Homebrew packages. Use when the user wants to reconcile or sync their dotfiles or packages, review pending `chezmoi diff` changes, find out what changed in their dotfiles, or decide file-by-file whether to apply the repo or update it from this machine.
 allowed-tools:
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh")
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh" *)
@@ -36,15 +36,13 @@ When running chezmoi commands, "source" = repo and "target" = this machine.
 
 ### Step 0: Pull latest from origin
 
-**Always do this first.** Reconciling against a stale local branch wastes effort — upstream commits may already declare packages or update files you're about to flag as drift.
+Reconciling against a stale local branch wastes effort — upstream commits may already declare packages or update files you'd otherwise flag as drift — so bring the branch up to date before Step 1.
 
 Run `git fetch origin` and check `git status -sb`. If the branch is behind `origin/main`, pull before proceeding:
 
 - **Clean working tree, behind only**: `git pull --rebase origin main`
 - **Behind and ahead** (diverged): show the local commits with `git log --oneline HEAD..origin/main` and `git log --oneline origin/main..HEAD`, then ask the user how to handle it (rebase, merge, or pause)
 - **Uncommitted changes**: stash them (`git stash push -m "reconcile-wip"`), pull/rebase, then `git stash pop`
-
-Only after the local branch is up to date should you proceed to Step 1.
 
 ### Step 1: Reconcile Homebrew packages
 
@@ -148,17 +146,7 @@ Present a clear, concise summary of each file that has differences. Group them l
   - **MACHINE_NEWER** — you made changes directly on this machine; default suggestion is **Update repo**
   - **SAME_TIME** or **NEW_FILE** — use diff content to judge
 
-**Describing what changed:**
-
-The diff output uses explicit `[MACHINE]` and `[REPO]` labels — read them directly:
-- `[MACHINE]` lines show what's on this machine right now
-- `[REPO]` lines show what the repo would write
-
-Describe both sides factually, then let the direction indicator guide which action to suggest by default:
-- "Machine has `X`, repo has `Y`"
-- "Machine includes `extra-line`, repo does not"
-
-When presenting options, state the concrete effect using actual values from the diff:
+Describe both sides factually from the `[MACHINE]`/`[REPO]` labels (e.g. "machine has `X`, repo has `Y`"), and when presenting options, state the concrete effect using actual values from the diff:
 - "**Apply** — writes repo content to this machine (replaces `X` with `Y`)"
 - "**Update repo** — pulls this machine's content into the repo (keeps `X`)"
 
@@ -201,7 +189,5 @@ If any files were marked for "apply," remind the user to run `chezmoi apply` (or
 ## Important notes
 
 - The repo directory can be found with `chezmoi source-path`
-- Repo files use chezmoi naming conventions: `dot_` prefix becomes `.`, `private_` sets permissions, `exact_` removes unmanaged files, `.tmpl` suffix means it's a Go template
-- When editing repo files, respect the chezmoi naming conventions. Edit the file as it exists in this repo (e.g., `private_dot_config/private_fish/config.fish.tmpl`), not the path on this machine.
-- Template files (`.tmpl`) may contain Go template directives. When merging or updating the repo, be careful not to break template syntax. If the user wants to update the repo from a rendered config into a template, help them preserve template expressions where appropriate.
-- Use `chezmoi data` if you need to see what template variables are available for debugging templates.
+- Edit the file as it exists in this repo (e.g., `private_dot_config/private_fish/config.fish.tmpl`), not the path on this machine.
+- When updating a template (`.tmpl`) from a rendered config on this machine, preserve its template expressions rather than overwriting them with rendered values.
