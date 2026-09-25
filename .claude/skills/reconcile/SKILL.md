@@ -10,9 +10,9 @@ allowed-tools:
   - Bash(chezmoi data *)
   - Bash(chezmoi cat *)
   - Bash(chezmoi source-path *)
-  - Bash(git fetch *)
-  - Bash(git status *)
-  - Bash(git log *)
+  - Bash(jj git fetch)
+  - Bash(jj log *)
+  - Bash(jj bookmark list *)
 ---
 
 # Reconcile
@@ -38,11 +38,10 @@ When running chezmoi commands, "source" = repo and "target" = this machine.
 
 Reconciling against a stale local branch wastes effort — upstream commits may already declare packages or update files you'd otherwise flag as drift — so bring the branch up to date before Step 1.
 
-Run `git fetch origin` and check `git status -sb`. If the branch is behind `origin/main`, pull before proceeding:
+Run `jj git fetch`. Because `main` tracks `main@origin`, the fetch moves `main` forward unless it has local commits that aren't on origin.
 
-- **Clean working tree, behind only**: `git pull --rebase origin main`
-- **Behind and ahead** (diverged): show the local commits with `git log --oneline HEAD..origin/main` and `git log --oneline origin/main..HEAD`, then ask the user how to handle it (rebase, merge, or pause)
-- **Uncommitted changes**: stash them (`git stash push -m "reconcile-wip"`), pull/rebase, then `git stash pop`
+- **`main` moved or was already current**: rebase local work onto it with `jj rebase -b @ -d main`. The working-copy commit carries uncommitted edits along, so there's nothing to stash. If the rebase leaves conflicts, show them and ask the user before continuing.
+- **`main` diverged** (`jj bookmark list main` shows it as conflicted): show the local-only commits with `jj log -r '::@ ~ ::main@origin'` and the upstream-only ones with `jj log -r '::main@origin ~ ::@'`, then ask the user how to handle it (rebase onto `main@origin`, merge, or pause).
 
 ### Step 1: Reconcile Homebrew packages
 
