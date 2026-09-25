@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO={{ .chezmoi.workingTree | quote }}
+
+if [ -d "$REPO/.jj" ]; then
+    exit 0
+fi
+
+if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+if ! command -v jj &>/dev/null; then
+    echo "jj is not installed, skipping colocated jj repo setup."
+    exit 0
+fi
+
+echo "==> Initializing colocated jj repo in $REPO..."
+jj git init --colocate "$REPO"
+jj -R "$REPO" bookmark track main@origin
