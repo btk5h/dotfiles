@@ -99,12 +99,17 @@ Plug 'catppuccin/vim', { 'as': 'catppuccin' }
 
 call plug#end()
 
+" colorscheme
+set termguicolors
+set background=dark
+colorscheme catppuccin_mocha
+
 " airline
 set noshowmode
 set laststatus=2
 set ttimeoutlen=10
 let g:airline_powerline_fonts=0
-let g:airline_theme='atomic'
+let g:airline_theme='catppuccin_mocha'
 let g:airline#extensions#tabline#enabled=1
 let g:airline#extensions#tabline#fnamemod=':t'
 
