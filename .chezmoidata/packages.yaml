@@ -54,4 +54,5 @@ packages:
       - sketch
       - steam
       - tailscale-app
-    work: []
+    work:
+      - zed
