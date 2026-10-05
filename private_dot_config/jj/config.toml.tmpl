@@ -13,10 +13,9 @@ home = ["util", "exec", "--", "sh", "-c", "jj git fetch && jj new 'trunk()'"]
 editor = "false"
 diff-editor = "false"
 merge-editor = "false"
-{{- if eq .profile "work" }}
 
 [signing]
 behavior = "own"
 backend = "ssh"
 key = "~/.ssh/id_rsa.pub"
-{{- end }}
+backends.ssh.program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
