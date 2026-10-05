@@ -1,0 +1,7 @@
+{
+  "name": "chezmoi-status",
+  "version": "1.0.0",
+  "description": "Status pane for this chezmoi repo: drift badges, AI diff summaries, a reconcile wizard, and Clawd fishing by the pond",
+  "author": { "name": "Bryan Terce" },
+  "types": "./types/index.d.ts"
+}
