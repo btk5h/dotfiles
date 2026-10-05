@@ -43,7 +43,6 @@ packages:
       - font-jetbrains-mono-nerd-font
       - ghostty
       - jetbrains-toolbox
-      - raycast
       - scroll-reverser
     personal:
       - discord
@@ -55,4 +54,5 @@ packages:
       - steam
       - tailscale-app
     work:
+      - raycast
       - zed
