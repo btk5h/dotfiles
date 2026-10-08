@@ -15,7 +15,10 @@ diff-editor = "false"
 merge-editor = "false"
 
 [signing]
-behavior = "own"
+behavior = "drop"
 backend = "ssh"
 key = "~/.ssh/id_rsa.pub"
 backends.ssh.program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+
+[git]
+sign-on-push = true
