@@ -54,5 +54,4 @@ packages:
       - steam
       - tailscale-app
     work:
-      - raycast
       - zed
