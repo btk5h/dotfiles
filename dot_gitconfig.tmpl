@@ -1,0 +1,25 @@
+[core]
+	excludesfile = ~/.gitignore
+	autocrlf = input
+[user]
+	name = Bryan Terce
+	email = {{ .email }}
+	signingkey = ~/.ssh/id_rsa.pub
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+[commit]
+	gpgsign = true
+[pull]
+	rebase = true
+[rebase]
+	autosquash = true
+[push]
+	autoSetupRemote = true
+[credential "https://github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/opt/homebrew/bin/gh auth git-credential
