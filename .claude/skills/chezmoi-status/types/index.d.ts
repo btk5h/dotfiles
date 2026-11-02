@@ -20,6 +20,17 @@ export type PackageDecision = 'added' | 'ignored' | 'uninstalled' | 'skipped'
 export type PackageRef = { kind: PackageKind; name: string }
 export type ExtraPackage = PackageRef & { decision: PackageDecision | null; scope: string | null }
 
+export type DefaultDecision = 'applied' | 'kept' | 'skipped'
+export type DriftedDefault = {
+  domain: string
+  key: string
+  type: string
+  machine: string | null
+  repo: string
+  isCurrentHost: boolean
+  decision: DefaultDecision | null
+}
+
 export type FileDirection = 'REPO_NEWER' | 'MACHINE_NEWER' | 'SAME_TIME' | 'NEW_FILE'
 export type FileDecision = 'applied' | 'kept' | 'merging' | 'skipped'
 export type FileSummary = { text: string; isLoading: boolean; error?: string }
@@ -36,13 +47,14 @@ export type DriftedFile = {
 export type PushState = { busy: string | null; note: { text: string; tone: 'ok' | 'warn' | 'error' } | null }
 
 export type Reconcile = {
-  step: 'pull' | 'packages' | 'files' | 'done'
+  step: 'pull' | 'packages' | 'defaults' | 'files' | 'done'
   busy: string | null
   note: { text: string; tone: 'ok' | 'warn' | 'error' } | null
   isBlocked: boolean
   profile: string
   missing: PackageRef[]
   packages: ExtraPackage[]
+  defaults: DriftedDefault[]
   files: DriftedFile[]
   cursor: number
   isConfirming: boolean

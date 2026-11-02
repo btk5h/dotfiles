@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { describe, filmFrame, randomSize } from '../hooks/film'
-import { addToPackages, parseBrewDiff, parseRichDiff } from '../hooks/reconcile'
+import { addToPackages, parseBrewDiff, parseDefaultsDiff, parseRichDiff, removeDefault, setDefaultValue } from '../hooks/reconcile'
 import { parseStatus } from '../hooks/status'
 
 const PANE = {
@@ -55,6 +55,22 @@ const PACKAGES_YAML = [
   '    common:',
   '      - firefox',
 ].join('\n')
+const DEFAULTS_DIFF = [
+  'PROFILE: personal',
+  'DRIFT com.apple.finder AppleShowAllFiles [bool]: machine=false repo=true',
+  'DRIFT -currentHost NSGlobalDomain com.apple.mouse.tapBehavior [int]: machine=<unset> repo=1',
+  'SUMMARY: drift=2 checked=15',
+].join('\n')
+const MACOS_YAML = [
+  'macos:',
+  '  defaults:',
+  '    common:',
+  '      - { domain: NSGlobalDomain, key: com.apple.mouse.tapBehavior, type: int, value: 1, currentHost: true }',
+  '      - { domain: com.apple.finder, key: AppleShowAllFiles, type: bool, value: true }',
+  '    personal:',
+  '      - { domain: com.apple.finder, key: FXPreferredViewStyle, type: string, value: clmv }',
+  '    work: []',
+].join('\n')
 const USAGE = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
 const REMOTE_SHA = 'a'.repeat(40)
 
@@ -62,7 +78,17 @@ const ran = (stdout: string, exitCode = 0) => ({
   value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
 })
 
-type Repo = { isKnown?: boolean; status?: string; behind?: string; ahead?: string; porcelain?: string; isOnline?: boolean; bookmark?: string; richDiff?: string }
+type Repo = {
+  isKnown?: boolean
+  status?: string
+  behind?: string
+  ahead?: string
+  porcelain?: string
+  isOnline?: boolean
+  bookmark?: string
+  richDiff?: string
+  defaultsDiff?: string
+}
 
 const answer = (argv: readonly string[], repo: Repo) => {
   const call = argv.join(' ')
@@ -72,6 +98,7 @@ const answer = (argv: readonly string[], repo: Repo) => {
   if (call.startsWith('chezmoi source-path /home/')) return ran(`/src/${argv[2]!.slice(6)}\n`)
   if (call.startsWith('chezmoi diff')) return ran(DIFF)
   if (call.endsWith('brew-diff.sh')) return ran(BREW_DIFF)
+  if (call.endsWith('defaults-diff.sh')) return ran(repo.defaultsDiff ?? '')
   if (call.endsWith('rich-diff.sh')) return ran(repo.richDiff ?? RICH_DIFF)
   if (call.includes('bookmark list main')) return ran(repo.bookmark ?? 'main: abc123 feat: something\n')
   if (argv[0] !== 'git') return ran('')
@@ -296,6 +323,27 @@ test('addToPackages fills an empty list', async () => {
   expect(yaml).toContain('    work:\n      - acme/tap')
 })
 
+test('parseDefaultsDiff reads each drifted setting, marking per-host and unset values', async () => {
+  const defaults = parseDefaultsDiff(DEFAULTS_DIFF)
+
+  expect(defaults).toEqual([
+    { domain: 'com.apple.finder', key: 'AppleShowAllFiles', type: 'bool', machine: 'false', repo: 'true', isCurrentHost: false, decision: null },
+    { domain: 'NSGlobalDomain', key: 'com.apple.mouse.tapBehavior', type: 'int', machine: null, repo: '1', isCurrentHost: true, decision: null },
+  ])
+})
+
+test('setDefaultValue replaces only that entry\'s value', async () => {
+  const yaml = setDefaultValue(MACOS_YAML, 'com.apple.finder', 'AppleShowAllFiles', 'bool', 'false')
+
+  expect(yaml).toContain('      - { domain: com.apple.finder, key: AppleShowAllFiles, type: bool, value: false }')
+})
+
+test('removeDefault leaves an empty list when it drops the last entry', async () => {
+  const yaml = removeDefault(MACOS_YAML, 'com.apple.finder', 'FXPreferredViewStyle')
+
+  expect(yaml).toContain('    personal: []\n    work: []')
+})
+
 test('the reconcile button opens the pull step', async ($, on) => {
   mock.clock(on)
   on('process.run', async (_$, e) => answer(e.argv, {}))
@@ -407,6 +455,28 @@ test('confirming uninstall removes the formula', async ($, on) => {
   await clock.advance(1)
 
   expect(calls).toContain('brew uninstall swiftlint')
+})
+
+test('applying a drifted default writes the repo value on this machine', async ($, on) => {
+  const clock = mock.clock(on)
+  const calls: string[] = []
+  on('process.run', async (_$, e) => {
+    calls.push(e.argv.join(' '))
+    return answer(e.argv, { defaultsDiff: DEFAULTS_DIFF })
+  })
+  on('fs.exists', async () => ({ value: false }))
+  on('fs.write', async () => ({ value: undefined }))
+  const ui = await $.ui.mount(PANE)
+  await ui.press({ key: 'reconcile' })
+  await ui.press({ key: 'reconcile-pull' })
+  await clock.advance(1)
+  await ui.press({ key: 'reconcile-ignore-rest' })
+  await clock.advance(1)
+
+  await ui.press({ key: 'reconcile-default-apply' })
+  await clock.advance(1)
+
+  expect(calls).toContain('defaults write com.apple.finder AppleShowAllFiles -bool true')
 })
 
 test('after the packages each drifted file shows both sides', async ($, on) => {
@@ -1057,7 +1127,7 @@ test('the reconciling lines rotate', async () => {
 
 test('Clawd never says a command', async () => {
   const scenes = [SYNCED, CASTING, BITING, CATCHING, NUDGED, JUNKING, RELEASING, EDITED, RECONCILED, STORMING, CLEARING, UNPUSHED, PUSHED]
-  const steps = [null, 'pull', 'packages', 'files', 'done'] as const
+  const steps = [null, 'pull', 'packages', 'defaults', 'files', 'done'] as const
 
   const lines = scenes.flatMap(scene => steps.flatMap(step => Array.from({ length: 300 }, (_, t) => describe(t, 50, scene, step).bubble?.text ?? '')))
 

@@ -22,7 +22,7 @@ export type Fishing = {
   isPropped: boolean
 }
 
-export type ReconcileStep = 'pull' | 'packages' | 'files' | 'done'
+export type ReconcileStep = 'pull' | 'packages' | 'defaults' | 'files' | 'done'
 export type Mood = 'sync' | 'pending' | 'drift' | 'behind' | 'ahead' | 'error' | 'unknown'
 
 export type Spec = {
@@ -152,6 +152,7 @@ const LINES = {
   reconciling: {
     pull: ['reeling in the line…', 'steady now…', 'almost there…'],
     packages: ['checking the tackle box…', 'sorting the lures', 'need more bait?'],
+    defaults: ['checking the knots…', 'tuning the reel', 'just how I like it'],
     files: ['sorting the catch…', 'keep or toss?', 'measuring this one'],
     done: ['nice haul!', 'good day on the water'],
   },

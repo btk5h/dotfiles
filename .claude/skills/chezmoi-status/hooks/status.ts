@@ -74,6 +74,7 @@ export const DIRECTION_LABELS: Record<FileDirection, string> = {
 }
 
 export const FILE_OUTCOMES: Record<string, string> = { applied: 'applied', kept: 'kept from machine', merging: 'sent to Claude', skipped: 'skipped' }
+export const DEFAULT_OUTCOMES: Record<string, string> = { applied: 'applied', kept: 'kept from machine', skipped: 'skipped' }
 export const PACKAGE_OUTCOMES: Record<string, string> = { added: 'added', ignored: 'ignored', uninstalled: 'uninstalled', skipped: 'skipped' }
 
 export const countBy = (values: (string | null)[]) =>

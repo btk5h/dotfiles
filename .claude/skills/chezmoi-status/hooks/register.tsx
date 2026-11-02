@@ -1,11 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { DriftedFile, FileDecision, FileSummary, PackageDecision, PushState, Reconcile, Snapshot, Summary, Upstream } from '../types'
+import type { DefaultDecision, DriftedFile, FileDecision, FileSummary, PackageDecision, PushState, Reconcile, Snapshot, Summary, Upstream } from '../types'
 import { FILM_ROWS, FILM_TICK_MS, filmFrame, fishKind, randomSize } from './film'
 import type { Mood, ReconcileStep, Scene } from './film'
-import { addToPackages, firstLine, note, parseBrewDiff, parseRichDiff } from './reconcile'
+import { addToPackages, firstLine, note, parseBrewDiff, parseDefaultsDiff, parseRichDiff, removeDefault, setDefaultValue } from './reconcile'
 import {
+  DEFAULT_OUTCOMES,
   DIRECTION_LABELS,
   FILE_OUTCOMES,
   PACKAGE_OUTCOMES,
@@ -248,15 +249,28 @@ const loadPackages = async ($: EngineInterface) => {
   const diff = await $.process.run(['bash', `${source}/.claude/skills/reconcile/brew-diff.sh`], { timeoutMs: COMMAND_TIMEOUT_MS })
   if (diff.exitCode === 1) {
     await setReconcile($, r => ({ ...r, note: note('Homebrew is not installed; skipping packages', 'warn') }))
-    await loadFiles($)
+    await loadDefaults($)
     return
   }
   const { profile, missing, packages } = parseBrewDiff(diff.stdout)
   await setReconcile($, r => ({ ...r, step: 'packages', profile, missing, packages, cursor: 0 }))
-  if (packages.length === 0) await loadFiles($)
+  if (packages.length === 0) await loadDefaults($)
 }
 
-const advance = async ($: EngineInterface, list: 'packages' | 'files') => {
+const loadDefaults = async ($: EngineInterface) => {
+  const { source } = await locate($)
+  const diff = await $.process.run(['bash', `${source}/.claude/skills/reconcile/defaults-diff.sh`], { timeoutMs: COMMAND_TIMEOUT_MS })
+  if (diff.exitCode !== 0) {
+    await setReconcile($, r => ({ ...r, note: note(`couldn't check macOS defaults: ${firstLine(diff)}`, 'warn') }))
+    await loadFiles($)
+    return
+  }
+  const defaults = parseDefaultsDiff(diff.stdout)
+  await setReconcile($, r => ({ ...r, step: 'defaults', defaults, cursor: 0 }))
+  if (defaults.length === 0) await loadFiles($)
+}
+
+const advance = async ($: EngineInterface, list: 'packages' | 'defaults' | 'files') => {
   const current = await read($, reconcile)
   if (current === null) return
   const next = current.cursor + 1
@@ -264,7 +278,8 @@ const advance = async ($: EngineInterface, list: 'packages' | 'files') => {
     await setReconcile($, r => ({ ...r, cursor: next }))
     return
   }
-  if (list === 'packages') await loadFiles($)
+  if (list === 'packages') await loadDefaults($)
+  else if (list === 'defaults') await loadFiles($)
   else await setReconcile($, r => ({ ...r, step: 'done' }))
 }
 
@@ -277,6 +292,7 @@ const startReconcile = async ($: EngineInterface) => {
     profile: 'common',
     missing: [],
     packages: [],
+    defaults: [],
     files: [],
     cursor: 0,
     isConfirming: false,
@@ -360,12 +376,35 @@ const ignoreRemainingPackages = ($: EngineInterface) =>
     const prefix = existing === '' || existing.endsWith('\n') ? existing : `${existing}\n`
     await $.fs.write(file, `${prefix}${remaining.map(one => `${one.name}\n`).join('')}`)
     await setReconcile($, r => ({ ...r, packages: r.packages.map((one, i) => (i >= r.cursor ? { ...one, decision: 'ignored' } : one)) }))
-    await loadFiles($)
+    await loadDefaults($)
   })
 
 const confirmUninstall = ($: EngineInterface) => setReconcile($, r => ({ ...r, isConfirming: true }))
 
 const cancelUninstall = ($: EngineInterface) => setReconcile($, r => ({ ...r, isConfirming: false }))
+
+const decideDefault = ($: EngineInterface, decision: DefaultDecision) =>
+  busy($, decision === 'applied' ? 'defaults write' : decision === 'kept' ? 'updating macos.yaml' : 'next setting', async () => {
+    const current = await read($, reconcile)
+    const item = current?.defaults[current.cursor]
+    if (!current || !item) return
+    if (decision === 'applied') {
+      const argv = ['defaults', ...(item.isCurrentHost ? ['-currentHost'] : []), 'write', item.domain, item.key, `-${item.type}`, item.repo]
+      const wrote = await $.process.run(argv, { timeoutMs: COMMAND_TIMEOUT_MS })
+      if (wrote.exitCode !== 0) {
+        await setReconcile($, r => ({ ...r, note: note(`defaults write failed: ${firstLine(wrote)}`, 'error') }))
+        return
+      }
+    }
+    if (decision === 'kept') {
+      const { source } = await locate($)
+      const file = `${source}/.chezmoidata/macos.yaml`
+      const yaml = await $.fs.read(file)
+      await $.fs.write(file, item.machine === null ? removeDefault(yaml, item.domain, item.key) : setDefaultValue(yaml, item.domain, item.key, item.type, item.machine))
+    }
+    await setReconcile($, r => ({ ...r, note: null, defaults: r.defaults.map((one, i) => (i === r.cursor ? { ...one, decision } : one)) }))
+    await advance($, 'defaults')
+  })
 
 const decideFile = ($: EngineInterface, decision: FileDecision) =>
   busy($, decision === 'applied' ? 'chezmoi apply' : decision === 'kept' ? 'chezmoi add' : 'next file', async () => {
@@ -466,6 +505,13 @@ const reconcilePackage = ($: EngineInterface, decision: PackageDecision, scope?:
 const reconcileIgnoreRest = ($: EngineInterface) =>
   later($, async () => {
     await ignoreRemainingPackages($)
+    await refresh($)
+    await summarizeCurrentFile($)
+  })
+
+const reconcileDefault = ($: EngineInterface, decision: DefaultDecision) =>
+  later($, async () => {
+    await decideDefault($, decision)
     await refresh($)
     await summarizeCurrentFile($)
   })
@@ -629,7 +675,7 @@ export const register: Register = on => {
     )
 
     const step = (label: string, index: number) => {
-      const order = ['pull', 'packages', 'files', 'done']
+      const order = ['pull', 'packages', 'defaults', 'files', 'done']
       const at = wizard ? order.indexOf(wizard.step) : 0
       return (
         <Text bold={index === at} dimColor={index !== at} color={index < at ? 'green' : undefined}>
@@ -698,6 +744,36 @@ export const register: Register = on => {
                     ? [{ key: 'reconcile-ignore-rest', label: 'Ignore rest', hotkey: 'g', onPress: () => reconcileIgnoreRest($) }]
                     : []),
                 ])}
+          </Box>
+        )
+      }
+
+      if (wizard.step === 'defaults') {
+        const item = wizard.defaults[wizard.cursor]
+        if (!item) return null
+        return (
+          <Box flexDirection="column">
+            <Box flexDirection="row" gap={1}>
+              <Text dimColor wrap="truncate-start">
+                {item.isCurrentHost ? `${item.domain} (this host)` : item.domain}
+              </Text>
+              <Text bold>{item.key}</Text>
+              <Text dimColor>
+                {wizard.cursor + 1}/{wizard.defaults.length}
+              </Text>
+            </Box>
+            <Text color="cyan">{`machine │ ${item.machine ?? 'unset'}`}</Text>
+            <Text color="yellow">{`repo    │ ${item.repo}`}</Text>
+            {choices([
+              { key: 'reconcile-default-apply', label: 'Apply repo', hotkey: 'a', isSuggested: true, onPress: () => reconcileDefault($, 'applied') },
+              {
+                key: 'reconcile-default-keep',
+                label: item.machine === null ? 'Drop from repo' : 'Keep machine',
+                hotkey: 'k',
+                onPress: () => reconcileDefault($, 'kept'),
+              },
+              { key: 'reconcile-default-skip', label: 'Skip', hotkey: 's', onPress: () => reconcileDefault($, 'skipped') },
+            ])}
           </Box>
         )
       }
@@ -776,11 +852,14 @@ export const register: Register = on => {
 
       const filesDone = countBy(wizard.files.map(file => file.decision))
       const packagesDone = countBy(wizard.packages.map(item => item.decision))
-      const isRepoChanged = (filesDone.kept ?? 0) + (packagesDone.added ?? 0) + (packagesDone.ignored ?? 0) > 0
+      const defaultsDone = countBy(wizard.defaults.map(item => item.decision))
+      const isRepoChanged = (filesDone.kept ?? 0) + (packagesDone.added ?? 0) + (packagesDone.ignored ?? 0) + (defaultsDone.kept ?? 0) > 0
       return (
         <Box flexDirection="column">
           <Text>{wizard.files.length > 0 ? `files: ${describeCounts(filesDone, FILE_OUTCOMES)}` : 'files: nothing to reconcile'}</Text>
           {wizard.packages.length > 0 && <Text>{`packages: ${describeCounts(packagesDone, PACKAGE_OUTCOMES)}`}</Text>}
+          {wizard.defaults.length > 0 && <Text>{`defaults: ${describeCounts(defaultsDone, DEFAULT_OUTCOMES)}`}</Text>}
+          {(defaultsDone.applied ?? 0) > 0 && <Text dimColor>Relaunch apps, or log out, to see the applied settings everywhere.</Text>}
           {isRepoChanged && <Text color="cyan">The repo changed; commit it with jj when you're happy.</Text>}
           {choices([
             ...(wizard.missing.length > 0
@@ -801,9 +880,11 @@ export const register: Register = on => {
             <Text dimColor>›</Text>
             {step('packages', 1)}
             <Text dimColor>›</Text>
-            {step('files', 2)}
+            {step('defaults', 2)}
             <Text dimColor>›</Text>
-            {step('done', 3)}
+            {step('files', 3)}
+            <Text dimColor>›</Text>
+            {step('done', 4)}
           </Box>
           {wizard.step !== 'done' && wizard.busy === null && (
             <Button key="reconcile-cancel" hotkey="x" plain onPress={() => closeReconcile($)}>

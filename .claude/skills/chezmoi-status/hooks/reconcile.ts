@@ -1,4 +1,4 @@
-import type { DriftedFile, ExtraPackage, FileDirection, PackageKind, PackageRef } from '../types'
+import type { DriftedDefault, DriftedFile, ExtraPackage, FileDirection, PackageKind, PackageRef } from '../types'
 
 const PREVIEW_LINES = 6
 const SECTIONS: Record<PackageKind, string> = { tap: 'taps', formula: 'formulae', cask: 'casks' }
@@ -50,3 +50,42 @@ export const addToPackages = (yaml: string, kind: PackageKind, key: string, name
   return lines.join('\n')
 }
 
+
+export const parseDefaultsDiff = (stdout: string): DriftedDefault[] =>
+  [...stdout.matchAll(/^DRIFT (-currentHost )?(\S+) (\S+) \[(\w+)\]: machine=(.*) repo=(.*)$/gm)].map(match => ({
+    domain: match[2]!,
+    key: match[3]!,
+    type: match[4]!,
+    machine: match[5] === '<unset>' ? null : match[5]!,
+    repo: match[6]!,
+    isCurrentHost: match[1] !== undefined,
+    decision: null,
+  }))
+
+const PLAIN_SCALAR = /^[A-Za-z_][\w./-]*$/
+const YAML_KEYWORDS = new Set(['true', 'false', 'yes', 'no', 'on', 'off', 'null'])
+
+const yamlValue = (type: string, value: string) =>
+  type !== 'string' || (PLAIN_SCALAR.test(value) && !YAML_KEYWORDS.has(value.toLowerCase())) ? value : JSON.stringify(value)
+
+const findDefault = (lines: string[], domain: string, key: string) => {
+  const at = lines.findIndex(line => line.includes(`{ domain: ${domain}, key: ${key}, `))
+  if (at === -1) throw new Error(`macos.yaml has no entry for ${domain} ${key}`)
+  return at
+}
+
+export const setDefaultValue = (yaml: string, domain: string, key: string, type: string, value: string): string => {
+  const lines = yaml.split('\n')
+  const at = findDefault(lines, domain, key)
+  lines[at] = lines[at]!.replace(/value: (?:"(?:[^"\\]|\\.)*"|[^,}]*?)(?=,| })/, `value: ${yamlValue(type, value)}`)
+  return lines.join('\n')
+}
+
+export const removeDefault = (yaml: string, domain: string, key: string): string => {
+  const lines = yaml.split('\n')
+  const at = findDefault(lines, domain, key)
+  const isOnlyEntry = /^\s+\w+:$/.test(lines[at - 1] ?? '') && !(lines[at + 1] ?? '').trimStart().startsWith('- ')
+  if (isOnlyEntry) lines.splice(at - 1, 2, `${lines[at - 1]} []`)
+  else lines.splice(at, 1)
+  return lines.join('\n')
+}
