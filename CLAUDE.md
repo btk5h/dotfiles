@@ -9,7 +9,7 @@ A public [chezmoi](https://www.chezmoi.io/) dotfiles repository. The repo root i
 ## Layout
 
 - `.chezmoi.toml.tmpl` prompts once for `profile` (`personal` or `work`) and `email`; templates branch on `{{ .profile }}`.
-- `.chezmoiscripts/` holds the `run_once_`/`run_onchange_` scripts, including `run_onchange_install-packages.sh.tmpl`, which installs the declared Homebrew packages during `chezmoi apply`, and `run_onchange_after_macos-defaults.sh.tmpl`, which writes the declared macOS defaults.
+- `.chezmoiscripts/` holds the `run_` scripts: `run_once_before_install-homebrew.sh` bootstraps Homebrew (and the Xcode Command Line Tools) on a new machine, the fish scripts set the login shell and install `fish_plugins` with fisher, and the rest include `run_onchange_install-packages.sh.tmpl`, which installs the declared Homebrew packages during `chezmoi apply`, and `run_onchange_after_macos-defaults.sh.tmpl`, which writes the declared macOS defaults.
 - `.claude/skills/reconcile/` is the `/reconcile` skill for repo ↔ machine drift in dotfiles, Homebrew packages, and macOS defaults.
 - `.claude/skills/chezmoi-status/` is a Claude Code plugin that loads in sessions in this repo: a status pane with drift badges, AI diff summaries, a Reconcile wizard built on the reconcile skill's `brew-diff.sh`, `defaults-diff.sh`, and `rich-diff.sh`, and Clawd fishing by the pond. Run its tests with `claude plugin test .claude/skills/chezmoi-status`.
 

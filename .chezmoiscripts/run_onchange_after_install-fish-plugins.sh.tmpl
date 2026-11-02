@@ -1,0 +1,14 @@
+#!/bin/bash
+# fish_plugins hash: {{ includeTemplate "private_dot_config/private_fish/fish_plugins.tmpl" . | sha256sum }}
+
+set -euo pipefail
+
+FISH=/opt/homebrew/bin/fish
+
+if [ ! -x "$FISH" ]; then
+    echo "fish is not installed, skipping fish plugin install."
+    exit 0
+fi
+
+echo "==> Installing fish plugins..."
+"$FISH" -c 'fisher update'
