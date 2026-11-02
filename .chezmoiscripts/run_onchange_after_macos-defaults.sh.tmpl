@@ -1,0 +1,16 @@
+#!/bin/bash
+# macos defaults hash: {{ .macos.defaults | toJson | sha256sum }}
+
+set -euo pipefail
+
+echo "==> Writing macOS defaults..."
+{{ range concat .macos.defaults.common (index .macos.defaults .profile) -}}
+defaults {{ if get . "currentHost" }}-currentHost {{ end }}write {{ .domain | quote }} {{ .key | quote }} -{{ .type }} {{ .value | quote }}
+{{ end }}
+ACTIVATE_SETTINGS=/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings
+if [ -x "$ACTIVATE_SETTINGS" ]; then
+    "$ACTIVATE_SETTINGS" -u
+fi
+killall Finder WindowManager ControlCenter 2>/dev/null || true
+
+echo "==> macOS defaults up to date. Apps that were already running pick up keyboard and text settings on relaunch."

@@ -1,9 +1,10 @@
 ---
 name: reconcile
-description: Reconcile drift between the chezmoi repo and this machine, covering both dotfiles and Homebrew packages. Use when the user wants to reconcile or sync their dotfiles or packages, review pending `chezmoi diff` changes, find out what changed in their dotfiles, or decide file-by-file whether to apply the repo or update it from this machine.
+description: Reconcile drift between the chezmoi repo and this machine, covering dotfiles, Homebrew packages, and macOS defaults. Use when the user wants to reconcile or sync their dotfiles, packages, or macOS settings, review pending `chezmoi diff` changes, find out what changed in their dotfiles, or decide file-by-file whether to apply the repo or update it from this machine.
 allowed-tools:
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh")
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/brew-diff.sh" *)
+  - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/defaults-diff.sh")
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh")
   - Bash(bash "$(chezmoi source-path)/.claude/skills/reconcile/rich-diff.sh" *)
   - Bash(chezmoi diff *)
@@ -17,7 +18,7 @@ allowed-tools:
 
 # Reconcile
 
-Guide the user through reconciling differences between the chezmoi **repo** and what's on **this machine**, including Homebrew package drift.
+Guide the user through reconciling differences between the chezmoi **repo** and what's on **this machine**, including Homebrew package and macOS defaults drift.
 
 ## Terminology
 
@@ -74,7 +75,7 @@ Summarize the script output to the user:
 - **Extra packages** (installed but not declared): list them, grouped by category
 - **Ignored packages**: mention the count but don't list them unless the user asks
 
-If there are no MISSING or EXTRA lines, report that packages are in sync and move on to file reconciliation.
+If there are no MISSING or EXTRA lines, report that packages are in sync and move on to macOS defaults.
 
 #### 1c. Walk through extra packages
 
@@ -92,7 +93,37 @@ Process packages in batches by category (taps, then formulae, then casks). For l
 
 Missing packages need no action — they will be installed automatically on next `chezmoi apply`.
 
-### Step 2: Discover file differences
+### Step 2: Reconcile macOS defaults
+
+Compare the macOS defaults declared in `.chezmoidata/macos.yaml` against this machine's values.
+
+#### 2a. Run the diff script
+
+```bash
+bash "$(chezmoi source-path)/.claude/skills/reconcile/defaults-diff.sh"
+```
+
+It outputs structured lines:
+- `PROFILE: <name>` — the active chezmoi profile
+- `DRIFT [-currentHost ]<domain> <key> [<type>]: machine=<value> repo=<value>` — the value on this machine differs from the repo; `machine=<unset>` means the key doesn't exist on this machine. Bools are shown as `true`/`false` on both sides.
+- `SUMMARY: drift=<n> checked=<n>` — always present; trust these counts instead of re-counting
+- `IN_SYNC: ...` — emitted when drift=0; move on to file reconciliation
+
+Exit codes: `0` success, `2` unknown flag.
+
+#### 2b. Walk through drifted settings
+
+For each DRIFT line, describe the setting in plain terms (e.g. "tap to click is off on this machine, on in the repo"), then ask the user what to do:
+
+1. **Apply** (repo → this machine) — Run `defaults [-currentHost] write <domain> <key> -<type> <repo value>`. Changes to `com.apple.finder`, `com.apple.WindowManager`, or the menu bar clock show up after `killall Finder WindowManager ControlCenter`; trackpad and keyboard changes after `/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u`; settings read by apps at launch (text substitution, press-and-hold, swipe navigation) after relaunching them.
+
+2. **Update repo** (this machine → repo) — Edit the entry's `value` in `.chezmoidata/macos.yaml`. If the key is `<unset>` on this machine, the user may instead want to remove the entry. Editing the data changes the apply script's hash, so the next `chezmoi apply` rewrites every declared default.
+
+3. **Skip** — Leave for this session only.
+
+Entries live under `common` (all profiles) or a profile's key; when updating the repo, ask which applies, the same as for packages.
+
+### Step 3: Discover file differences
 
 Run the rich-diff helper script to see all pending changes with timestamp-based direction indicators:
 
@@ -135,7 +166,7 @@ Large per-file diffs are truncated at 60 lines with a `TRUNCATED: <n> more line(
 
 If there is no drift, the script prints `NO_DRIFT: ...` (it never produces empty output) — tell the user everything is in sync and stop. Exit code `2` means an unknown flag was passed.
 
-### Step 3: Summarize the changes
+### Step 4: Summarize the changes
 
 Present a clear, concise summary of each file that has differences. Group them logically (e.g., fish config, git config, etc.) and for each file explain:
 - The **file path** on this machine (e.g., `~/.config/fish/config.fish`)
@@ -151,11 +182,11 @@ Describe both sides factually from the `[MACHINE]`/`[REPO]` labels (e.g. "machin
 
 Use your judgment about how much detail to show. For small diffs, show them inline. For large diffs, summarize and offer to show details on request.
 
-### Step 4: Walk through each file
+### Step 5: Walk through each file
 
 For each file with differences, ask the user what they want to do. Present these options clearly:
 
-1. **Apply** (repo → this machine) -- Write the repo version to this machine (run `chezmoi apply <path>` for this file). Use the direction-aware descriptions from Step 3 to explain what this concretely does (e.g., for MACHINE_NEWER, this reverts this machine back to the repo version).
+1. **Apply** (repo → this machine) -- Write the repo version to this machine (run `chezmoi apply <path>` for this file). Use the direction-aware descriptions from Step 4 to explain what this concretely does (e.g., for MACHINE_NEWER, this reverts this machine back to the repo version).
 
 2. **Update repo** (this machine → repo) -- This machine has the version they want to keep. Update the repo to match this machine by running `chezmoi add <path>`, which copies the file from this machine back into the repo. For template files (`.tmpl`), this is more nuanced -- explain that `chezmoi add` will capture the rendered output and they may need to manually update the template. Offer to help edit the template directly.
 
@@ -175,7 +206,7 @@ When a conflict involves a template file, or when updating the repo / merging ch
 
 This is especially important when this machine has changes that were made locally -- those changes may only be relevant to the profile this machine uses. Run `chezmoi data` to check which profile is active so you can give informed suggestions about scoping.
 
-### Step 5: Apply the resolution
+### Step 6: Apply the resolution
 
 After walking through all files, summarize what was decided:
 - Files to apply (repo wins — written to this machine)
