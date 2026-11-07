@@ -20,5 +20,5 @@ backend = "ssh"
 key = "~/.ssh/id_rsa.pub"
 backends.ssh.program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 
-[git]
-sign-on-push = true
+[revsets]
+git-sign-on-push = "~signed() & mine()"
