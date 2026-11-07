@@ -37,7 +37,6 @@ packages:
       - bartender
       - cleanshot
       - cmux
-      - docker
       - docker-desktop
       - firefox
       - font-jetbrains-mono-nerd-font
