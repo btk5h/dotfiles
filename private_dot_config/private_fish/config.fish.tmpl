@@ -18,12 +18,6 @@ if not contains $_asdf_shims $PATH
     set -gx --prepend PATH $_asdf_shims
 end
 set --erase _asdf_shims
-{{ end -}}
-{{ if eq .profile "personal" }}
-# Proto toolchain manager
-set -gx PROTO_HOME "$HOME/.proto"
-fish_add_path "$PROTO_HOME/shims"
-fish_add_path "$PROTO_HOME/bin"
 {{ end }}
 # Apply Tide prompt configuration once (persisted in universal variables).
 if not set -q tide_config_applied; and type -q tide
